@@ -1,0 +1,20 @@
+# Copyright (c) 2025 Makani Science
+# SPDX-License-Identifier: Apache-2.0
+
+config LED_KTD202X
+	bool "KTD202x RGB LED driver"
+	default y
+	depends on DT_HAS_KINETIC_KTD202X_ENABLED
+	select I2C
+	help
+	  Enable driver for Kinetic KTD2026/KTD2027 I2C RGB/RGBW LED controllers.
+
+	  The KTD2026 is a 3-channel constant current LED driver and the KTD2027
+	  is a 4-channel variant. Both support individual LED brightness control,
+	  hardware PWM blinking, and programmable rise/fall times.
+
+	  Features:
+	  - 3 or 4 LED channels with 0-24mA current (0.125mA steps)
+	  - Hardware PWM blinking with configurable period and duty cycle
+	  - Programmable rise/fall times for smooth transitions
+	  - I2C interface (address 0x30, 0x31, or 0x32 depending on variant)
