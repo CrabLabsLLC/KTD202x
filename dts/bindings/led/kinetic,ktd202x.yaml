@@ -79,6 +79,16 @@ compatible: "kinetic,ktd202x"
 include: ["i2c-device.yaml", "led-controller.yaml"]
 
 properties:
+  vin-supply:
+    type: phandle
+    description: Regulator that powers the KTD202x chip
+
+  "#address-cells":
+    const: 1
+
+  "#size-cells":
+    const: 0
+
   channel-map:
     type: array
     description: |
@@ -98,17 +108,17 @@ properties:
 child-binding:
   description: LED channel configuration
   properties:
+    reg:
+      type: int
+      required: true
+      description: |
+        LED index (0-based). For a single RGB LED, use 0.
+        For separate LED definitions, use sequential indices (0, 1, 2...).
+
     label:
       type: string
       required: true
       description: Human-readable label for the LED
-
-    index:
-      type: int
-      required: true
-      description: |
-        LED index for the Zephyr LED API. For a single RGB LED, use 0.
-        For separate LED definitions, use sequential indices (0, 1, 2...).
 
     color-mapping:
       type: array
