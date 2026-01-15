@@ -1,7 +1,7 @@
 # Copyright (c) 2025 Makani Science
 # SPDX-License-Identifier: Apache-2.0
 
-config LED_KTD202X
+menuconfig LED_KTD202X
 	bool "KTD202x RGB LED driver"
 	default y
 	depends on DT_HAS_KINETIC_KTD202X_ENABLED
@@ -18,3 +18,54 @@ config LED_KTD202X
 	  - Hardware PWM blinking with configurable period and duty cycle
 	  - Programmable rise/fall times for smooth transitions
 	  - I2C interface (address 0x30, 0x31, or 0x32 depending on variant)
+
+if LED_KTD202X
+
+config KTD202X_MAX_CURRENT_MA
+	int "Maximum LED current (mA)"
+	default 5
+	range 1 24
+	help
+	  Maximum LED current in milliamps.
+	  The KTD202x supports 0-24mA with 0.125mA resolution.
+	  Default 5mA is suitable for indicator LEDs.
+	  Higher values may be needed for diffused/high-brightness LEDs.
+
+	  Note: Actual current = (register_value + 1) * 0.125mA
+	  Register range: 0x00 = 0.125mA, 0xBF = 24mA
+
+config KTD202X_DEFAULT_RISE_TIME_MS
+	int "Default rise time for fade effects (ms)"
+	default 256
+	range 0 3072
+	help
+	  Default rise time for breathing/fade effects in milliseconds.
+	  Time = trise * 96ms (with 1x scaling).
+
+	  Common values:
+	    0 = 1.5ms (instant)
+	    96 = ~100ms (quick fade)
+	    256 = ~256ms (smooth)
+	    512 = ~512ms (slow breathe)
+	    1024 = ~1s (very slow)
+
+	  Can be adjusted at runtime via ktd202x_set_fade_time().
+
+config KTD202X_DEFAULT_FALL_TIME_MS
+	int "Default fall time for fade effects (ms)"
+	default 256
+	range 0 3072
+	help
+	  Default fall time for breathing/fade effects in milliseconds.
+	  Same scaling as rise time.
+
+config KTD202X_RAMP_LINEAR
+	bool "Use linear ramp (instead of S-curve)"
+	default n
+	help
+	  By default (n), the KTD202x uses a logarithmic S-curve for
+	  rise/fall transitions, which looks more natural to the eye.
+
+	  Enable this for a simple linear ramp instead.
+
+endif # LED_KTD202X
