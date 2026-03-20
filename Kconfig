@@ -1,4 +1,4 @@
-# Copyright (c) 2025 Makani Science
+# Copyright (c) 2025 Crab Labs LLC
 # SPDX-License-Identifier: Apache-2.0
 
 menuconfig LED_KTD202X
@@ -40,16 +40,16 @@ config KTD202X_DEFAULT_RISE_TIME_MS
 	range 0 3072
 	help
 	  Default rise time for breathing/fade effects in milliseconds.
-	  Time = trise * 96ms (with 1x scaling).
+	  Time = trise * 128ms (with 1x scaling).
 
 	  Common values:
-	    0 = 1.5ms (instant)
-	    96 = ~100ms (quick fade)
+	    0 = ~2ms (instant)
+	    128 = 128ms (quick fade)
 	    256 = ~256ms (smooth)
 	    512 = ~512ms (slow breathe)
 	    1024 = ~1s (very slow)
 
-	  Can be adjusted at runtime via ktd202x_set_fade_time().
+	  Can be adjusted at runtime via ktd202xSetFadeTime().
 
 config KTD202X_DEFAULT_FALL_TIME_MS
 	int "Default fall time for fade effects (ms)"
