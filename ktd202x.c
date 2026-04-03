@@ -1,3 +1,6 @@
+/* Copyright (c) 2025 Crab Labs LLC */
+/* SPDX-License-Identifier: Apache-2.0 */
+
 /**
  * @file ktd202x.c
  * @brief KTD2026/KTD2027 RGB LED driver -- Zephyr LED API + breathing
@@ -12,9 +15,6 @@
  * @reviewer
  */
 
-/* Copyright (c) 2025 Crab Labs LLC */
-/* SPDX-License-Identifier: Apache-2.0 */
-
 #define DT_DRV_COMPAT kinetic_ktd202x
 
 #include <zephyr/device.h>
@@ -27,7 +27,7 @@
 
 #include "ktd202x.h"
 
-LOG_MODULE_REGISTER(ktd202x, CONFIG_LED_LOG_LEVEL);
+LOG_MODULE_REGISTER(ktd202x, CONFIG_KTD202X_LOG_LEVEL);
 
 /* ============================================================================
  * Register Definitions
@@ -44,77 +44,77 @@ LOG_MODULE_REGISTER(ktd202x, CONFIG_LED_LOG_LEVEL);
 #define KTD202X_REG_LED3         0x08
 #define KTD202X_REG_LED4         0x09
 
-/* EN_RST Register (0x00) bits -- per datasheet Table 1, page 13 */
-/* Reg0[2:0] Timer Slot Control / Reset */
-#define KTD202X_EN_RST_TCTRL_MASK      0x07  /* Bits [2:0]: Timer slot / reset */
-#define KTD202X_EN_RST_TCTRL_TSLOT1    0x00  /*   000 = Timer slot 1 */
-#define KTD202X_EN_RST_TCTRL_TSLOT2    0x01  /*   001 = Timer slot 2 */
-#define KTD202X_EN_RST_TCTRL_TSLOT3    0x02  /*   010 = Timer slot 3 */
-#define KTD202X_EN_RST_TCTRL_TSLOT4    0x03  /*   011 = Timer slot 4 */
-#define KTD202X_EN_RST_TCTRL_NOP       0x04  /*   100 = Do nothing (bit cleared) */
-#define KTD202X_EN_RST_RESET_CHIP      0x07  /*   111 = Reset complete chip */
-/* Reg0[4:3] Enable Control */
-#define KTD202X_EN_RST_EN_CTRL_MASK    0x18  /* Bits [4:3]: Enable control */
+// EN_RST Register (0x00) bits -- per datasheet Table 1, page 13
+// Reg0[2:0] Timer Slot Control / Reset
+#define KTD202X_EN_RST_TCTRL_MASK      0x07  // Bits [2:0]: Timer slot / reset
+#define KTD202X_EN_RST_TCTRL_TSLOT1    0x00  // 000 = Timer slot 1
+#define KTD202X_EN_RST_TCTRL_TSLOT2    0x01  // 001 = Timer slot 2
+#define KTD202X_EN_RST_TCTRL_TSLOT3    0x02  // 010 = Timer slot 3
+#define KTD202X_EN_RST_TCTRL_TSLOT4    0x03  // 011 = Timer slot 4
+#define KTD202X_EN_RST_TCTRL_NOP       0x04  // 100 = Do nothing (bit cleared)
+#define KTD202X_EN_RST_RESET_CHIP      0x07  // 111 = Reset complete chip
+// Reg0[4:3] Enable Control
+#define KTD202X_EN_RST_EN_CTRL_MASK    0x18  // Bits [4:3]: Enable control
 #define KTD202X_EN_RST_EN_CTRL_SHIFT   3
-#define KTD202X_EN_RST_EN_SCL_SDA      0x00  /*   00 = ON when SCL+SDA high */
-#define KTD202X_EN_RST_EN_SCL_TOG      0x08  /*   01 = ON when SCL high, SDA toggling */
-#define KTD202X_EN_RST_EN_SCL          0x10  /*   10 = ON when SCL high */
-#define KTD202X_EN_RST_EN_ALWAYS       0x18  /*   11 = Always ON */
-/* Reg0[6:5] Rise/Fall Time Scaling */
-#define KTD202X_EN_RST_TSCALE_MASK     0x60  /* Bits [6:5]: Time scale for rise/fall */
+#define KTD202X_EN_RST_EN_SCL_SDA      0x00  // 00 = ON when SCL+SDA high
+#define KTD202X_EN_RST_EN_SCL_TOG      0x08  // 01 = ON when SCL high, SDA toggling
+#define KTD202X_EN_RST_EN_SCL          0x10  // 10 = ON when SCL high
+#define KTD202X_EN_RST_EN_ALWAYS       0x18  // 11 = Always ON
+// Reg0[6:5] Rise/Fall Time Scaling
+#define KTD202X_EN_RST_TSCALE_MASK     0x60  // Bits [6:5]: Time scale for rise/fall
 #define KTD202X_EN_RST_TSCALE_SHIFT    5
-/* Reg0[7] Reserved -- must be 0 (factory test) */
+// Reg0[7] Reserved -- must be 0 (factory test)
 
-/* FLASH_PERIOD Register (0x01) bits */
-#define KTD202X_FLASH_PERIOD_MASK      0x7F  /* Bits [6:0]: Period value */
-#define KTD202X_FLASH_RAMP_LINEAR_BIT  0x80  /* Reg1[7]: 1=linear ramp, 0=S-curve */
+// FLASH_PERIOD Register (0x01) bits
+#define KTD202X_FLASH_PERIOD_MASK      0x7F  // Bits [6:0]: Period value
+#define KTD202X_FLASH_RAMP_LINEAR_BIT  0x80  // Reg1[7]: 1=linear ramp, 0=S-curve
 
-/* LED Mode bits in LED_EN register (0x04) */
+// LED Mode bits in LED_EN register (0x04)
 #define KTD202X_LED_MODE_OFF           0x00
 #define KTD202X_LED_MODE_ON            0x01
 #define KTD202X_LED_MODE_PWM1          0x02
 #define KTD202X_LED_MODE_PWM2          0x03
 #define KTD202X_LED_MODE_MASK          0x03
 
-/* Current limits */
-#define KTD202X_MAX_CURRENT_REG        0xBF  /* 191 = 24mA (0.125mA * 192) */
+// Current limits
+#define KTD202X_MAX_CURRENT_REG        0xBF  // 191 = 24mA (0.125mA * 192)
 #define KTD202X_MAX_CHANNELS           4
 #define KTD202X_DEFAULT_NUM_CHANNELS   3
 
-/* Timing constants */
+// Timing constants
 #define KTD202X_RESET_DELAY_US         200
 #define KTD202X_INIT_RETRY_COUNT       3
 #define KTD202X_RETRY_DELAY_MS         10
-#define KTD202X_BREATHE_DUTY_CYCLE     128   /* 50% duty for breathing */
+#define KTD202X_BREATHE_DUTY_CYCLE     128   // 50% duty for breathing
 
 /* Rise/fall time: value * 128ms (1x scale), 0 = 2ms minimum
  * Per datasheet page 15: Reg5=1 at 1x -> 128ms, Reg5=4 at 1x -> 512ms */
 #define KTD202X_RAMP_TIME_STEP_MS      128
-#define KTD202X_RAMP_TIME_MIN_MS       2     /* ~2ms when trise/tfall=0 */
-#define KTD202X_RAMP_TIME_MAX_VALUE    15    /* 4-bit field max */
+#define KTD202X_RAMP_TIME_MIN_MS       2     // ~2ms when trise/tfall=0
+#define KTD202X_RAMP_TIME_MAX_VALUE    15    // 4-bit field max
 
 /* Flash period: value=0 -> 128ms, value>=1 -> 256 + value*128 ms
  * Range: 128ms to 16.4s (value 0-126), value 127 = one-shot */
 #define KTD202X_FLASH_PERIOD_MIN_MS    128
-#define KTD202X_FLASH_PERIOD_MAX_VALUE 126   /* 127 = one-shot */
+#define KTD202X_FLASH_PERIOD_MAX_VALUE 126   // 127 = one-shot
 
 /* ============================================================================
  * Kconfig-derived constants
  * ============================================================================ */
 
-/* Max current from Kconfig (mA) -> register value */
-/* Current = (reg + 1) * 0.125mA, so reg = (mA / 0.125) - 1 = mA * 8 - 1 */
+// Max current from Kconfig (mA) -> register value
+// Current = (reg + 1) * 0.125mA, so reg = (mA / 0.125) - 1 = mA * 8 - 1
 #define KTD202X_MAX_BRIGHTNESS \
 	MIN(((CONFIG_KTD202X_MAX_CURRENT_MA * 8) - 1), KTD202X_MAX_CURRENT_REG)
 
-/* Default rise/fall time from Kconfig -> register value */
+// Default rise/fall time from Kconfig -> register value
 #define KTD202X_DEFAULT_TRISE \
 	MIN((CONFIG_KTD202X_DEFAULT_RISE_TIME_MS / KTD202X_RAMP_TIME_STEP_MS), KTD202X_RAMP_TIME_MAX_VALUE)
 
 #define KTD202X_DEFAULT_TFALL \
 	MIN((CONFIG_KTD202X_DEFAULT_FALL_TIME_MS / KTD202X_RAMP_TIME_STEP_MS), KTD202X_RAMP_TIME_MAX_VALUE)
 
-/* Ramp type from Kconfig -- stored in Reg1[7], NOT Reg0 */
+// Ramp type from Kconfig -- stored in Reg1[7], NOT Reg0
 #if IS_ENABLED(CONFIG_KTD202X_RAMP_LINEAR)
 #define KTD202X_RAMP_TYPE_INIT true
 #else
@@ -158,7 +158,7 @@ struct ktd202x_data
  * Static Function Declarations
  * ============================================================================ */
 
-/* Helpers */
+// Helpers
 static const struct led_info* ktd202x_led_to_info(const struct ktd202x_config* const config, const uint32_t led_index);
 static inline uint8_t ktd202x_led_mode_shift(const uint32_t hardware_channel);
 static inline uint8_t ktd202x_map_channel(const struct ktd202x_config* const config, const uint8_t color_index);
@@ -173,7 +173,7 @@ static int ktd202x_configure_breathe(
 	const struct led_info* const led_info,
 	const uint32_t period_ms);
 
-/* Zephyr LED API */
+// Zephyr LED API
 static int ktd202x_get_info(const struct device* const dev, const uint32_t led_index, const struct led_info** info);
 static int ktd202x_set_brightness(const struct device* const dev, const uint32_t led_index, const uint8_t brightness);
 static int ktd202x_set_color(const struct device* const dev, const uint32_t led_index, const uint8_t num_colors, const uint8_t* const color);
@@ -181,7 +181,7 @@ static int ktd202x_on(const struct device* const dev, const uint32_t led_index);
 static int ktd202x_off(const struct device* const dev, const uint32_t led_index);
 static int ktd202x_blink(const struct device* const dev, const uint32_t led_index, const uint32_t delay_on, const uint32_t delay_off);
 
-/* Initialization */
+// Initialization
 static int ktd202x_init(const struct device* const dev);
 
 /* ============================================================================
@@ -216,7 +216,11 @@ int ktd202xSetFadeTime(const struct device* const dev, const uint32_t rise_ms, c
 	const uint8_t fall_time_register_value = ktd202x_time_to_ramp_value(fall_ms);
 	const uint8_t combined_fade_register = (fall_time_register_value << 4) | rise_time_register_value;
 
-	k_mutex_lock(&data->lock, K_FOREVER);
+	if (k_mutex_lock(&data->lock, K_MSEC(100)) != 0)
+	{
+		LOG_ERR("Mutex lock timeout");
+		return -ETIMEDOUT;
+	}
 
 	const int ret = i2c_reg_write_byte_dt(&config->i2c, KTD202X_REG_TRISE_TFALL, combined_fade_register);
 	if (ret == 0)
@@ -240,7 +244,11 @@ int ktd202xSetTimeScale(const struct device* const dev, const KTD202xTimeScale s
 	const struct ktd202x_config* const config = dev->config;
 	struct ktd202x_data* const data = dev->data;
 
-	k_mutex_lock(&data->lock, K_FOREVER);
+	if (k_mutex_lock(&data->lock, K_MSEC(100)) != 0)
+	{
+		LOG_ERR("Mutex lock timeout");
+		return -ETIMEDOUT;
+	}
 
 	uint8_t new_enable_reset_register = data->en_rst_register;
 	new_enable_reset_register &= ~KTD202X_EN_RST_TSCALE_MASK;
@@ -267,9 +275,13 @@ int ktd202xSetRampLinear(const struct device* const dev, const bool is_linear)
 	const struct ktd202x_config* const config = dev->config;
 	struct ktd202x_data* const data = dev->data;
 
-	k_mutex_lock(&data->lock, K_FOREVER);
+	if (k_mutex_lock(&data->lock, K_MSEC(100)) != 0)
+	{
+		LOG_ERR("Mutex lock timeout");
+		return -ETIMEDOUT;
+	}
 
-	/* Ramp linear bit is Reg1[7] (FLASH_PERIOD register), NOT Reg0 */
+	// Ramp linear bit is Reg1[7] (FLASH_PERIOD register), NOT Reg0
 	uint8_t flash_period_register;
 	int ret = i2c_reg_read_byte_dt(&config->i2c, KTD202X_REG_FLASH_PERIOD, &flash_period_register);
 	if (ret < 0)
@@ -310,9 +322,13 @@ int ktd202xBreathe(const struct device* const dev, const uint32_t led_index, con
 	struct ktd202x_data* const data = dev->data;
 	const uint8_t current_value = ktd202x_brightness_to_current(brightness);
 
-	k_mutex_lock(&data->lock, K_FOREVER);
+	if (k_mutex_lock(&data->lock, K_MSEC(100)) != 0)
+	{
+		LOG_ERR("Mutex lock timeout");
+		return -ETIMEDOUT;
+	}
 
-	/* Set brightness for all channels in this LED */
+	// Set brightness for all channels in this LED
 	for (uint8_t color_channel_index = 0; color_channel_index < led_info->num_colors; color_channel_index++)
 	{
 		const uint8_t hardware_channel = ktd202x_map_channel(config, led_info->index + color_channel_index);
@@ -352,9 +368,13 @@ int ktd202xBreatheColor(
 
 	struct ktd202x_data* const data = dev->data;
 
-	k_mutex_lock(&data->lock, K_FOREVER);
+	if (k_mutex_lock(&data->lock, K_MSEC(100)) != 0)
+	{
+		LOG_ERR("Mutex lock timeout");
+		return -ETIMEDOUT;
+	}
 
-	/* Set color for each channel */
+	// Set color for each channel
 	for (uint8_t color_channel_index = 0; color_channel_index < num_colors; color_channel_index++)
 	{
 		const uint8_t hardware_channel = ktd202x_map_channel(config, led_info->index + color_channel_index);
@@ -382,7 +402,11 @@ int ktd202xSetPWM2DutyCycle(const struct device* const dev, const uint8_t duty_c
 	const struct ktd202x_config* const config = dev->config;
 	struct ktd202x_data* const data = dev->data;
 
-	k_mutex_lock(&data->lock, K_FOREVER);
+	if (k_mutex_lock(&data->lock, K_MSEC(100)) != 0)
+	{
+		LOG_ERR("Mutex lock timeout");
+		return -ETIMEDOUT;
+	}
 
 	const int ret = i2c_reg_write_byte_dt(&config->i2c, KTD202X_REG_PWM2_TIMER, duty_cycle);
 
@@ -401,7 +425,11 @@ int ktd202xReset(const struct device* const dev)
 	const struct ktd202x_config* const config = dev->config;
 	struct ktd202x_data* const data = dev->data;
 
-	k_mutex_lock(&data->lock, K_FOREVER);
+	if (k_mutex_lock(&data->lock, K_MSEC(100)) != 0)
+	{
+		LOG_ERR("Mutex lock timeout");
+		return -ETIMEDOUT;
+	}
 
 	int ret = i2c_reg_write_byte_dt(&config->i2c, KTD202X_REG_EN_RST, KTD202X_EN_RST_RESET_CHIP);
 	if (ret < 0)
@@ -413,7 +441,7 @@ int ktd202xReset(const struct device* const dev)
 
 	k_usleep(KTD202X_RESET_DELAY_US);
 
-	/* Re-initialize to always-on mode */
+	// Re-initialize to always-on mode
 	data->en_rst_register = KTD202X_EN_RST_EN_ALWAYS |
 	                        KTD202X_EN_RST_TCTRL_TSLOT1;
 	data->led_enable_register = 0x00;
@@ -440,14 +468,18 @@ int ktd202xSetEnabled(const struct device* const dev, const bool is_enabled)
 	const struct ktd202x_config* const config = dev->config;
 	struct ktd202x_data* const data = dev->data;
 
-	k_mutex_lock(&data->lock, K_FOREVER);
+	if (k_mutex_lock(&data->lock, K_MSEC(100)) != 0)
+	{
+		LOG_ERR("Mutex lock timeout");
+		return -ETIMEDOUT;
+	}
 
 	uint8_t new_enable_reset_register = data->en_rst_register;
 	new_enable_reset_register &= ~KTD202X_EN_RST_EN_CTRL_MASK;
 
 	if (is_enabled)
 		new_enable_reset_register |= KTD202X_EN_RST_EN_ALWAYS;
-	/* else: EN_SCL_SDA = 0x00, bits already cleared by mask */
+	// else: EN_SCL_SDA = 0x00, bits already cleared by mask
 
 	const int ret = i2c_reg_write_byte_dt(&config->i2c, KTD202X_REG_EN_RST, new_enable_reset_register);
 	if (ret == 0)
@@ -484,9 +516,13 @@ int ktd202xFlashOnce(const struct device* const dev, const uint32_t led_index, c
 	const uint32_t clamped_on_time_ms = MIN(on_time_ms, oneshot_period_ms);
 	const uint8_t pwm_duty_cycle = ktd202x_calc_pwm_duty(clamped_on_time_ms, oneshot_period_ms);
 
-	k_mutex_lock(&data->lock, K_FOREVER);
+	if (k_mutex_lock(&data->lock, K_MSEC(100)) != 0)
+	{
+		LOG_ERR("Mutex lock timeout");
+		return -ETIMEDOUT;
+	}
 
-	/* Set brightness for all channels */
+	// Set brightness for all channels
 	for (uint8_t color_channel_index = 0; color_channel_index < led_info->num_colors; color_channel_index++)
 	{
 		const uint8_t hardware_channel = ktd202x_map_channel(config, led_info->index + color_channel_index);
@@ -499,7 +535,7 @@ int ktd202xFlashOnce(const struct device* const dev, const uint32_t led_index, c
 		}
 	}
 
-	/* Set flash period to 127 (one-shot), preserve Reg1[7] ramp linear bit */
+	// Set flash period to 127 (one-shot), preserve Reg1[7] ramp linear bit
 	uint8_t flash_period_register = 127;
 	if (data->is_ramp_linear)
 		flash_period_register |= KTD202X_FLASH_RAMP_LINEAR_BIT;
@@ -511,7 +547,7 @@ int ktd202xFlashOnce(const struct device* const dev, const uint32_t led_index, c
 		return ret;
 	}
 
-	/* Set PWM1 duty cycle for on-time */
+	// Set PWM1 duty cycle for on-time
 	ret = i2c_reg_write_byte_dt(&config->i2c, KTD202X_REG_PWM1_TIMER, pwm_duty_cycle);
 	if (ret < 0)
 	{
@@ -519,7 +555,7 @@ int ktd202xFlashOnce(const struct device* const dev, const uint32_t led_index, c
 		return ret;
 	}
 
-	/* Set channels to PWM1 mode */
+	// Set channels to PWM1 mode
 	uint8_t new_led_enable_register = data->led_enable_register;
 	for (uint8_t color_channel_index = 0; color_channel_index < led_info->num_colors; color_channel_index++)
 	{
@@ -558,7 +594,11 @@ int ktd202xSetChannelPWM(const struct device* const dev, const uint32_t led_inde
 
 	struct ktd202x_data* const data = dev->data;
 
-	k_mutex_lock(&data->lock, K_FOREVER);
+	if (k_mutex_lock(&data->lock, K_MSEC(100)) != 0)
+	{
+		LOG_ERR("Mutex lock timeout");
+		return -ETIMEDOUT;
+	}
 
 	uint8_t new_led_enable_register = data->led_enable_register;
 
@@ -592,7 +632,11 @@ int ktd202xSetTimerSlot(const struct device* const dev, const KTD202xTimerSlot s
 	const struct ktd202x_config* const config = dev->config;
 	struct ktd202x_data* const data = dev->data;
 
-	k_mutex_lock(&data->lock, K_FOREVER);
+	if (k_mutex_lock(&data->lock, K_MSEC(100)) != 0)
+	{
+		LOG_ERR("Mutex lock timeout");
+		return -ETIMEDOUT;
+	}
 
 	uint8_t new_enable_reset_register = data->en_rst_register;
 	new_enable_reset_register &= ~KTD202X_EN_RST_TCTRL_MASK;
@@ -619,7 +663,11 @@ int ktd202xSetEnableMode(const struct device* const dev, const KTD202xEnableMode
 	const struct ktd202x_config* const config = dev->config;
 	struct ktd202x_data* const data = dev->data;
 
-	k_mutex_lock(&data->lock, K_FOREVER);
+	if (k_mutex_lock(&data->lock, K_MSEC(100)) != 0)
+	{
+		LOG_ERR("Mutex lock timeout");
+		return -ETIMEDOUT;
+	}
 
 	uint8_t new_enable_reset_register = data->en_rst_register;
 	new_enable_reset_register &= ~KTD202X_EN_RST_EN_CTRL_MASK;
@@ -645,7 +693,11 @@ int ktd202xGetLEDEnable(const struct device* const dev, uint8_t* const led_enabl
 
 	struct ktd202x_data* const data = dev->data;
 
-	k_mutex_lock(&data->lock, K_FOREVER);
+	if (k_mutex_lock(&data->lock, K_MSEC(100)) != 0)
+	{
+		LOG_ERR("Mutex lock timeout");
+		return -ETIMEDOUT;
+	}
 
 	*led_enable = data->led_enable_register;
 
@@ -666,9 +718,13 @@ int ktd202xSetFlashPeriod(const struct device* const dev, const uint32_t period_
 	if (ktd202x_calc_flash_period(period_ms, &flash_period_register) < 0)
 		return -EINVAL;
 
-	k_mutex_lock(&data->lock, K_FOREVER);
+	if (k_mutex_lock(&data->lock, K_MSEC(100)) != 0)
+	{
+		LOG_ERR("Mutex lock timeout");
+		return -ETIMEDOUT;
+	}
 
-	/* Preserve Reg1[7] ramp linear bit */
+	// Preserve Reg1[7] ramp linear bit
 	if (data->is_ramp_linear)
 		flash_period_register |= KTD202X_FLASH_RAMP_LINEAR_BIT;
 
@@ -690,14 +746,18 @@ int ktd202xGetFadeTime(const struct device* const dev, uint32_t* const rise_ms, 
 
 	struct ktd202x_data* const data = dev->data;
 
-	k_mutex_lock(&data->lock, K_FOREVER);
+	if (k_mutex_lock(&data->lock, K_MSEC(100)) != 0)
+	{
+		LOG_ERR("Mutex lock timeout");
+		return -ETIMEDOUT;
+	}
 
 	const uint8_t rise_time_register_value = data->trise_tfall_register & 0x0F;
 	const uint8_t fall_time_register_value = (data->trise_tfall_register >> 4) & 0x0F;
 
 	k_mutex_unlock(&data->lock);
 
-	/* Convert register values to ms: 0 = ~2ms, otherwise value * 128ms */
+	// Convert register values to ms: 0 = ~2ms, otherwise value * 128ms
 	*rise_ms = (rise_time_register_value == 0) ? KTD202X_RAMP_TIME_MIN_MS : (uint32_t)rise_time_register_value * KTD202X_RAMP_TIME_STEP_MS;
 	*fall_ms = (fall_time_register_value == 0) ? KTD202X_RAMP_TIME_MIN_MS : (uint32_t)fall_time_register_value * KTD202X_RAMP_TIME_STEP_MS;
 
@@ -711,7 +771,11 @@ KTD202xTimeScale ktd202xGetTimeScale(const struct device* const dev)
 
 	struct ktd202x_data* const data = dev->data;
 
-	k_mutex_lock(&data->lock, K_FOREVER);
+	if (k_mutex_lock(&data->lock, K_MSEC(100)) != 0)
+	{
+		LOG_ERR("Mutex lock timeout");
+		return KTD202X_TSCALE_1X;
+	}
 
 	const KTD202xTimeScale scale = (KTD202xTimeScale)(
 		(data->en_rst_register & KTD202X_EN_RST_TSCALE_MASK) >> KTD202X_EN_RST_TSCALE_SHIFT);
@@ -728,7 +792,11 @@ bool ktd202xIsRampLinear(const struct device* const dev)
 
 	struct ktd202x_data* const data = dev->data;
 
-	k_mutex_lock(&data->lock, K_FOREVER);
+	if (k_mutex_lock(&data->lock, K_MSEC(100)) != 0)
+	{
+		LOG_ERR("Mutex lock timeout");
+		return false;
+	}
 
 	const bool is_linear = data->is_ramp_linear;
 
@@ -745,7 +813,11 @@ int ktd202xSetPWM1DutyCycle(const struct device* const dev, const uint8_t duty_c
 	const struct ktd202x_config* const config = dev->config;
 	struct ktd202x_data* const data = dev->data;
 
-	k_mutex_lock(&data->lock, K_FOREVER);
+	if (k_mutex_lock(&data->lock, K_MSEC(100)) != 0)
+	{
+		LOG_ERR("Mutex lock timeout");
+		return -ETIMEDOUT;
+	}
 
 	const int ret = i2c_reg_write_byte_dt(&config->i2c, KTD202X_REG_PWM1_TIMER, duty_cycle);
 
@@ -801,14 +873,14 @@ static inline uint8_t ktd202x_map_channel(const struct ktd202x_config* const con
 	return hardware_channel;
 }
 
-/* Convert 0-100 brightness percentage to register value, capped by max current */
+// Convert 0-100 brightness percentage to register value, capped by max current
 static inline uint8_t ktd202x_brightness_to_current(const uint8_t brightness)
 {
 	const uint32_t clamped = MIN(brightness, 100U);
 	return (uint8_t)((clamped * KTD202X_MAX_BRIGHTNESS) / 100U);
 }
 
-/* Convert 0-255 color value to register value, capped by max current */
+// Convert 0-255 color value to register value, capped by max current
 static inline uint8_t ktd202x_color_to_current(const uint8_t color)
 {
 	return (uint8_t)(((uint32_t)color * KTD202X_MAX_BRIGHTNESS) / 255U);
@@ -821,7 +893,7 @@ static int ktd202x_calc_flash_period(const uint32_t period_ms, uint8_t* const re
 	if (period_ms < KTD202X_FLASH_PERIOD_MIN_MS)
 		return -EINVAL;
 
-	/* Value 0 = 128ms. For values >= 1: period = 256 + value*128 */
+	// Value 0 = 128ms. For values >= 1: period = 256 + value*128
 	if (period_ms < 384)
 	{
 		*register_value = 0;
@@ -833,7 +905,7 @@ static int ktd202x_calc_flash_period(const uint32_t period_ms, uint8_t* const re
 	return 0;
 }
 
-/* Calculate PWM duty cycle register value */
+// Calculate PWM duty cycle register value
 static uint8_t ktd202x_calc_pwm_duty(const uint32_t delay_on, const uint32_t period)
 {
 	if (period == 0)
@@ -842,7 +914,7 @@ static uint8_t ktd202x_calc_pwm_duty(const uint32_t delay_on, const uint32_t per
 	return (uint8_t)((delay_on * 256U) / period);
 }
 
-/* Convert time in ms to rise/fall register value (0-15) */
+// Convert time in ms to rise/fall register value (0-15)
 static uint8_t ktd202x_time_to_ramp_value(const uint32_t time_ms)
 {
 	if (time_ms < KTD202X_RAMP_TIME_MIN_MS)
@@ -864,7 +936,7 @@ static int ktd202x_configure_breathe(
 	if (ktd202x_calc_flash_period(period_ms, &flash_period_register) < 0)
 		return -EINVAL;
 
-	/* Preserve Reg1[7] ramp linear bit */
+	// Preserve Reg1[7] ramp linear bit
 	if (data->is_ramp_linear)
 		flash_period_register |= KTD202X_FLASH_RAMP_LINEAR_BIT;
 
@@ -876,7 +948,7 @@ static int ktd202x_configure_breathe(
 	if (ret < 0)
 		return ret;
 
-	/* Build new enable register locally, commit only on success */
+	// Build new enable register locally, commit only on success
 	uint8_t new_led_enable_register = data->led_enable_register;
 	for (uint8_t color_channel_index = 0; color_channel_index < led_info->num_colors; color_channel_index++)
 	{
@@ -923,9 +995,13 @@ static int ktd202x_set_brightness(const struct device* const dev, const uint32_t
 	struct ktd202x_data* const data = dev->data;
 	const uint8_t current_value = ktd202x_brightness_to_current(brightness);
 
-	k_mutex_lock(&data->lock, K_FOREVER);
+	if (k_mutex_lock(&data->lock, K_MSEC(100)) != 0)
+	{
+		LOG_ERR("Mutex lock timeout");
+		return -ETIMEDOUT;
+	}
 
-	/* Set same brightness on all channels of this LED */
+	// Set same brightness on all channels of this LED
 	for (uint8_t color_channel_index = 0; color_channel_index < led_info->num_colors; color_channel_index++)
 	{
 		const uint8_t hardware_channel = ktd202x_map_channel(config, led_info->index + color_channel_index);
@@ -938,7 +1014,7 @@ static int ktd202x_set_brightness(const struct device* const dev, const uint32_t
 		}
 	}
 
-	/* Build new enable register locally, commit only on success */
+	// Build new enable register locally, commit only on success
 	uint8_t new_led_enable_register = data->led_enable_register;
 	const uint8_t mode = (brightness > 0) ? KTD202X_LED_MODE_ON : KTD202X_LED_MODE_OFF;
 
@@ -970,7 +1046,11 @@ static int ktd202x_set_color(const struct device* const dev, const uint32_t led_
 
 	struct ktd202x_data* const data = dev->data;
 
-	k_mutex_lock(&data->lock, K_FOREVER);
+	if (k_mutex_lock(&data->lock, K_MSEC(100)) != 0)
+	{
+		LOG_ERR("Mutex lock timeout");
+		return -ETIMEDOUT;
+	}
 
 	uint8_t new_led_enable_register = data->led_enable_register;
 
@@ -1014,7 +1094,11 @@ static int ktd202x_on(const struct device* const dev, const uint32_t led_index)
 
 	struct ktd202x_data* const data = dev->data;
 
-	k_mutex_lock(&data->lock, K_FOREVER);
+	if (k_mutex_lock(&data->lock, K_MSEC(100)) != 0)
+	{
+		LOG_ERR("Mutex lock timeout");
+		return -ETIMEDOUT;
+	}
 
 	uint8_t new_led_enable_register = data->led_enable_register;
 
@@ -1053,7 +1137,11 @@ static int ktd202x_off(const struct device* const dev, const uint32_t led_index)
 
 	struct ktd202x_data* const data = dev->data;
 
-	k_mutex_lock(&data->lock, K_FOREVER);
+	if (k_mutex_lock(&data->lock, K_MSEC(100)) != 0)
+	{
+		LOG_ERR("Mutex lock timeout");
+		return -ETIMEDOUT;
+	}
 
 	uint8_t new_led_enable_register = data->led_enable_register;
 
@@ -1089,9 +1177,13 @@ static int ktd202x_blink(const struct device* const dev, const uint32_t led_inde
 	if (ktd202x_calc_flash_period(period, &flash_period_register) < 0)
 		return -EINVAL;
 
-	k_mutex_lock(&data->lock, K_FOREVER);
+	if (k_mutex_lock(&data->lock, K_MSEC(100)) != 0)
+	{
+		LOG_ERR("Mutex lock timeout");
+		return -ETIMEDOUT;
+	}
 
-	/* Preserve Reg1[7] ramp linear bit */
+	// Preserve Reg1[7] ramp linear bit
 	if (data->is_ramp_linear)
 		flash_period_register |= KTD202X_FLASH_RAMP_LINEAR_BIT;
 
@@ -1142,14 +1234,14 @@ static int ktd202x_init(const struct device* const dev)
 
 	k_mutex_init(&data->lock);
 
-	/* Check I2C bus is ready */
+	// Check I2C bus is ready
 	if (!i2c_is_ready_dt(&config->i2c))
 	{
 		LOG_ERR("I2C bus not ready");
 		return -ENODEV;
 	}
 
-	/* Enable VIN supply if configured */
+	// Enable VIN supply if configured
 	if (config->vin_supply != NULL)
 	{
 		if (!device_is_ready(config->vin_supply))
@@ -1163,10 +1255,10 @@ static int ktd202x_init(const struct device* const dev)
 			LOG_ERR("Failed to enable VIN regulator: %d", ret);
 			return ret;
 		}
-		k_msleep(100); /* Power stabilization */
+		k_msleep(100); // Power stabilization
 	}
 
-	/* Reset the device -- retry a few times if I2C fails initially */
+	// Reset the device -- retry a few times if I2C fails initially
 	for (int attempt = 0; attempt < KTD202X_INIT_RETRY_COUNT; attempt++)
 	{
 		ret = i2c_reg_write_byte_dt(
@@ -1198,11 +1290,11 @@ static int ktd202x_init(const struct device* const dev)
 		return ret;
 	}
 
-	/* Set ramp type in Reg1[7] (FLASH_PERIOD register) */
+	// Set ramp type in Reg1[7] (FLASH_PERIOD register)
 	data->is_ramp_linear = KTD202X_RAMP_TYPE_INIT;
 	if (data->is_ramp_linear)
 	{
-		/* Read-modify-write Reg1 to set bit 7 */
+		// Read-modify-write Reg1 to set bit 7
 		uint8_t flash_period_register;
 		ret = i2c_reg_read_byte_dt(&config->i2c, KTD202X_REG_FLASH_PERIOD, &flash_period_register);
 		if (ret == 0)
@@ -1217,7 +1309,7 @@ static int ktd202x_init(const struct device* const dev)
 		}
 	}
 
-	/* Set default rise/fall times from Kconfig */
+	// Set default rise/fall times from Kconfig
 	data->trise_tfall_register = (KTD202X_DEFAULT_TFALL << 4) | KTD202X_DEFAULT_TRISE;
 	ret = i2c_reg_write_byte_dt(
 		&config->i2c, KTD202X_REG_TRISE_TFALL, data->trise_tfall_register);
@@ -1227,7 +1319,7 @@ static int ktd202x_init(const struct device* const dev)
 		return ret;
 	}
 
-	/* All LEDs off initially */
+	// All LEDs off initially
 	data->led_enable_register = 0x00;
 	ret = i2c_reg_write_byte_dt(&config->i2c, KTD202X_REG_LED_EN, 0x00);
 	if (ret < 0)

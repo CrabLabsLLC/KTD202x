@@ -21,6 +21,15 @@ menuconfig LED_KTD202X
 
 if LED_KTD202X
 
+config KTD202X_LOG_LEVEL
+	int "KTD202x log level"
+	default 0
+	range 0 4
+	depends on LOG
+	help
+	  Sets log level for KTD202x driver.
+	  0 = OFF, 1 = ERR, 2 = WRN, 3 = INF, 4 = DBG
+
 config KTD202X_MAX_CURRENT_MA
 	int "Maximum LED current (mA)"
 	default 5

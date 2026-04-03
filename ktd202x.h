@@ -1,3 +1,6 @@
+/* Copyright (c) 2025 Crab Labs LLC */
+/* SPDX-License-Identifier: Apache-2.0 */
+
 /**
  * @file ktd202x.h
  * @brief KTD2026/KTD2027 RGB LED driver -- extended API
@@ -11,9 +14,6 @@
  *
  * @reviewer
  */
-
-/* Copyright (c) 2025 Crab Labs LLC */
-/* SPDX-License-Identifier: Apache-2.0 */
 
 #pragma once
 #ifndef KTD202X_H
@@ -345,4 +345,4 @@ uint8_t ktd202xGetMaxCurrentMa(void);
 }
 #endif
 
-#endif /* KTD202X_H */
+#endif // KTD202X_H
