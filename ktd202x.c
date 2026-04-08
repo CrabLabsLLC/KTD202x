@@ -1,6 +1,3 @@
-/* Copyright (c) 2025 Crab Labs LLC */
-/* SPDX-License-Identifier: Apache-2.0 */
-
 /**
  * @file ktd202x.c
  * @brief KTD2026/KTD2027 RGB LED driver -- Zephyr LED API + breathing
@@ -14,6 +11,9 @@
  *
  * @reviewer
  */
+
+/* Copyright (c) 2025 Crab Labs LLC */
+/* SPDX-License-Identifier: Apache-2.0 */
 
 #define DT_DRV_COMPAT kinetic_ktd202x
 
