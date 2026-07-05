@@ -97,11 +97,11 @@ properties:
 
       This allows correcting for different LED wiring configurations:
         - RGB (default): <0 1 2> - Red->LED1, Green->LED2, Blue->LED3
-        - RBG:           <0 2 1> - Red->LED1, Blue->LED2, Green->LED3
-        - GRB:           <1 0 2> - Green->LED1, Red->LED2, Blue->LED3
-        - GBR:           <1 2 0> - Green->LED1, Blue->LED2, Red->LED3
-        - BRG:           <2 0 1> - Blue->LED1, Red->LED2, Green->LED3
-        - BGR:           <2 1 0> - Blue->LED1, Green->LED2, Red->LED3
+        - RBG:           <0 2 1> - Red->LED1, Green->LED3, Blue->LED2
+        - GRB:           <1 0 2> - Red->LED2, Green->LED1, Blue->LED3
+        - GBR:           <2 0 1> - Red->LED3, Green->LED1, Blue->LED2
+        - BRG:           <1 2 0> - Red->LED2, Green->LED3, Blue->LED1
+        - BGR:           <2 1 0> - Red->LED3, Green->LED2, Blue->LED1
 
       If not specified, direct mapping (RGB) is used.
 

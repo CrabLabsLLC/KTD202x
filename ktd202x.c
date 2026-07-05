@@ -149,38 +149,38 @@ struct ktd202x_data
 };
 
 // Helpers
-static const struct led_info* ktd202x_led_to_info(const struct ktd202x_config* const config, const uint32_t led_index);
-static inline uint8_t ktd202x_led_mode_shift(const uint32_t hardware_channel);
-static inline uint8_t ktd202x_map_channel(const struct ktd202x_config* const config, const uint8_t color_index);
-static inline uint8_t ktd202x_brightness_to_current(const uint8_t brightness);
-static inline uint8_t ktd202x_color_to_current(const uint8_t color);
-static int ktd202x_calc_flash_period(const uint32_t period_ms, uint8_t* const register_value);
-static uint8_t ktd202x_calc_pwm_duty(const uint32_t delay_on, const uint32_t period);
-static uint8_t ktd202x_time_to_ramp_value(const uint32_t time_ms);
-static int ktd202x_configure_breathe(
+static const struct led_info* ktd202xLedToInfo(const struct ktd202x_config* const config, const uint32_t led_index);
+static inline uint8_t ktd202xLedModeShift(const uint32_t hardware_channel);
+static inline uint8_t ktd202xMapChannel(const struct ktd202x_config* const config, const uint8_t color_index);
+static inline uint8_t ktd202xBrightnessToCurrent(const uint8_t brightness);
+static inline uint8_t ktd202xColorToCurrent(const uint8_t color);
+static int ktd202xCalcFlashPeriod(const uint32_t period_ms, uint8_t* const register_value);
+static uint8_t ktd202xCalcPWMDuty(const uint32_t delay_on, const uint32_t period);
+static uint8_t ktd202xTimeToRampValue(const uint32_t time_ms);
+static int ktd202xConfigureBreathe(
 	const struct ktd202x_config* const config,
 	struct ktd202x_data* const data,
 	const struct led_info* const led_info,
 	const uint32_t period_ms);
 
 // Zephyr LED API
-static int ktd202x_get_info(const struct device* const dev, const uint32_t led_index, const struct led_info** info);
-static int ktd202x_set_brightness(const struct device* const dev, const uint32_t led_index, const uint8_t brightness);
-static int ktd202x_set_color(const struct device* const dev, const uint32_t led_index, const uint8_t num_colors, const uint8_t* const color);
-static int ktd202x_on(const struct device* const dev, const uint32_t led_index);
-static int ktd202x_off(const struct device* const dev, const uint32_t led_index);
-static int ktd202x_blink(const struct device* const dev, const uint32_t led_index, const uint32_t delay_on, const uint32_t delay_off);
+static int ktd202xGetInfo(const struct device* const dev, const uint32_t led_index, const struct led_info** info);
+static int ktd202xSetBrightness(const struct device* const dev, const uint32_t led_index, const uint8_t brightness);
+static int ktd202xSetColor(const struct device* const dev, const uint32_t led_index, const uint8_t num_colors, const uint8_t* const color);
+static int ktd202xOn(const struct device* const dev, const uint32_t led_index);
+static int ktd202xOff(const struct device* const dev, const uint32_t led_index);
+static int ktd202xBlink(const struct device* const dev, const uint32_t led_index, const uint32_t delay_on, const uint32_t delay_off);
 
-static int ktd202x_init(const struct device* const dev);
+static int ktd202xDeviceInit(const struct device* const dev);
 
 static DEVICE_API(led, ktd202x_led_api) =
 	{
-		.on = ktd202x_on,
-		.off = ktd202x_off,
-		.set_brightness = ktd202x_set_brightness,
-		.set_color = ktd202x_set_color,
-		.blink = ktd202x_blink,
-		.get_info = ktd202x_get_info,
+		.on = ktd202xOn,
+		.off = ktd202xOff,
+		.set_brightness = ktd202xSetBrightness,
+		.set_color = ktd202xSetColor,
+		.blink = ktd202xBlink,
+		.get_info = ktd202xGetInfo,
 };
 
 int ktd202xSetFadeTime(const struct device* const dev, const uint32_t rise_ms, const uint32_t fall_ms)
@@ -191,8 +191,8 @@ int ktd202xSetFadeTime(const struct device* const dev, const uint32_t rise_ms, c
 	const struct ktd202x_config* const config = dev->config;
 	struct ktd202x_data* const data = dev->data;
 
-	const uint8_t rise_time_register_value = ktd202x_time_to_ramp_value(rise_ms);
-	const uint8_t fall_time_register_value = ktd202x_time_to_ramp_value(fall_ms);
+	const uint8_t rise_time_register_value = ktd202xTimeToRampValue(rise_ms);
+	const uint8_t fall_time_register_value = ktd202xTimeToRampValue(fall_ms);
 	const uint8_t combined_fade_register = (fall_time_register_value << 4) | rise_time_register_value;
 
 	if (k_mutex_lock(&data->lock, K_MSEC(100)) != 0)
@@ -290,13 +290,13 @@ int ktd202xBreathe(const struct device* const dev, const uint32_t led_index, con
 		return -EINVAL;
 
 	const struct ktd202x_config* const config = dev->config;
-	const struct led_info* const led_info = ktd202x_led_to_info(config, led_index);
+	const struct led_info* const led_info = ktd202xLedToInfo(config, led_index);
 
 	if (led_info == NULL)
 		return -ENODEV;
 
 	struct ktd202x_data* const data = dev->data;
-	const uint8_t current_value = ktd202x_brightness_to_current(brightness);
+	const uint8_t current_value = ktd202xBrightnessToCurrent(brightness);
 
 	if (k_mutex_lock(&data->lock, K_MSEC(100)) != 0)
 	{
@@ -307,7 +307,7 @@ int ktd202xBreathe(const struct device* const dev, const uint32_t led_index, con
 	// Set brightness for all channels in this LED
 	for (uint8_t color_channel_index = 0; color_channel_index < led_info->num_colors; color_channel_index++)
 	{
-		const uint8_t hardware_channel = ktd202x_map_channel(config, led_info->index + color_channel_index);
+		const uint8_t hardware_channel = ktd202xMapChannel(config, led_info->index + color_channel_index);
 		const int ret = i2c_reg_write_byte_dt(
 			&config->i2c, KTD202X_REG_LED1 + hardware_channel, current_value);
 		if (ret < 0)
@@ -317,7 +317,7 @@ int ktd202xBreathe(const struct device* const dev, const uint32_t led_index, con
 		}
 	}
 
-	const int ret = ktd202x_configure_breathe(config, data, led_info, period_ms);
+	const int ret = ktd202xConfigureBreathe(config, data, led_info, period_ms);
 
 	k_mutex_unlock(&data->lock);
 
@@ -337,7 +337,7 @@ int ktd202xBreatheColor(
 		return -EINVAL;
 
 	const struct ktd202x_config* const config = dev->config;
-	const struct led_info* const led_info = ktd202x_led_to_info(config, led_index);
+	const struct led_info* const led_info = ktd202xLedToInfo(config, led_index);
 
 	if (led_info == NULL || led_info->num_colors != num_colors)
 		return -EINVAL;
@@ -353,8 +353,8 @@ int ktd202xBreatheColor(
 	// Set color for each channel
 	for (uint8_t color_channel_index = 0; color_channel_index < num_colors; color_channel_index++)
 	{
-		const uint8_t hardware_channel = ktd202x_map_channel(config, led_info->index + color_channel_index);
-		const uint8_t current_value = ktd202x_color_to_current(color[color_channel_index]);
+		const uint8_t hardware_channel = ktd202xMapChannel(config, led_info->index + color_channel_index);
+		const uint8_t current_value = ktd202xColorToCurrent(color[color_channel_index]);
 		const int ret = i2c_reg_write_byte_dt(
 			&config->i2c, KTD202X_REG_LED1 + hardware_channel, current_value);
 		if (ret < 0)
@@ -364,7 +364,7 @@ int ktd202xBreatheColor(
 		}
 	}
 
-	const int ret = ktd202x_configure_breathe(config, data, led_info, period_ms);
+	const int ret = ktd202xConfigureBreathe(config, data, led_info, period_ms);
 
 	k_mutex_unlock(&data->lock);
 	return ret;
@@ -479,13 +479,13 @@ int ktd202xFlashOnce(const struct device* const dev, const uint32_t led_index, c
 		return -EINVAL;
 
 	const struct ktd202x_config* const config = dev->config;
-	const struct led_info* const led_info = ktd202x_led_to_info(config, led_index);
+	const struct led_info* const led_info = ktd202xLedToInfo(config, led_index);
 
 	if (led_info == NULL)
 		return -ENODEV;
 
 	struct ktd202x_data* const data = dev->data;
-	const uint8_t current_value = ktd202x_brightness_to_current(brightness);
+	const uint8_t current_value = ktd202xBrightnessToCurrent(brightness);
 
 	/* One-shot period is fixed at flash_period=127.
 	 * Datasheet: value >= 1 means period = 256 + value*128 ms.
@@ -493,7 +493,7 @@ int ktd202xFlashOnce(const struct device* const dev, const uint32_t led_index, c
 	 * Duty cycle = on_time / 16512 * 256. */
 	static const uint32_t oneshot_period_ms = 256 + (127 * 128);
 	const uint32_t clamped_on_time_ms = MIN(on_time_ms, oneshot_period_ms);
-	const uint8_t pwm_duty_cycle = ktd202x_calc_pwm_duty(clamped_on_time_ms, oneshot_period_ms);
+	const uint8_t pwm_duty_cycle = ktd202xCalcPWMDuty(clamped_on_time_ms, oneshot_period_ms);
 
 	if (k_mutex_lock(&data->lock, K_MSEC(100)) != 0)
 	{
@@ -504,7 +504,7 @@ int ktd202xFlashOnce(const struct device* const dev, const uint32_t led_index, c
 	// Set brightness for all channels
 	for (uint8_t color_channel_index = 0; color_channel_index < led_info->num_colors; color_channel_index++)
 	{
-		const uint8_t hardware_channel = ktd202x_map_channel(config, led_info->index + color_channel_index);
+		const uint8_t hardware_channel = ktd202xMapChannel(config, led_info->index + color_channel_index);
 		const int ret = i2c_reg_write_byte_dt(
 			&config->i2c, KTD202X_REG_LED1 + hardware_channel, current_value);
 		if (ret < 0)
@@ -538,8 +538,8 @@ int ktd202xFlashOnce(const struct device* const dev, const uint32_t led_index, c
 	uint8_t new_led_enable_register = data->led_enable_register;
 	for (uint8_t color_channel_index = 0; color_channel_index < led_info->num_colors; color_channel_index++)
 	{
-		const uint8_t hardware_channel = ktd202x_map_channel(config, led_info->index + color_channel_index);
-		const uint8_t shift = ktd202x_led_mode_shift(hardware_channel);
+		const uint8_t hardware_channel = ktd202xMapChannel(config, led_info->index + color_channel_index);
+		const uint8_t shift = ktd202xLedModeShift(hardware_channel);
 		new_led_enable_register &= ~(KTD202X_LED_MODE_MASK << shift);
 		new_led_enable_register |= (KTD202X_LED_MODE_PWM1 << shift);
 	}
@@ -566,7 +566,7 @@ int ktd202xSetChannelPWM(const struct device* const dev, const uint32_t led_inde
 		return -EINVAL;
 
 	const struct ktd202x_config* const config = dev->config;
-	const struct led_info* const led_info = ktd202x_led_to_info(config, led_index);
+	const struct led_info* const led_info = ktd202xLedToInfo(config, led_index);
 
 	if (led_info == NULL)
 		return -ENODEV;
@@ -583,8 +583,8 @@ int ktd202xSetChannelPWM(const struct device* const dev, const uint32_t led_inde
 
 	for (uint8_t color_channel_index = 0; color_channel_index < led_info->num_colors; color_channel_index++)
 	{
-		const uint8_t hardware_channel = ktd202x_map_channel(config, led_info->index + color_channel_index);
-		const uint8_t shift = ktd202x_led_mode_shift(hardware_channel);
+		const uint8_t hardware_channel = ktd202xMapChannel(config, led_info->index + color_channel_index);
+		const uint8_t shift = ktd202xLedModeShift(hardware_channel);
 		new_led_enable_register &= ~(KTD202X_LED_MODE_MASK << shift);
 		new_led_enable_register |= ((uint8_t)pwm_channel << shift);
 	}
@@ -694,7 +694,7 @@ int ktd202xSetFlashPeriod(const struct device* const dev, const uint32_t period_
 	struct ktd202x_data* const data = dev->data;
 
 	uint8_t flash_period_register;
-	if (ktd202x_calc_flash_period(period_ms, &flash_period_register) < 0)
+	if (ktd202xCalcFlashPeriod(period_ms, &flash_period_register) < 0)
 		return -EINVAL;
 
 	if (k_mutex_lock(&data->lock, K_MSEC(100)) != 0)
@@ -816,7 +816,7 @@ uint8_t ktd202xGetMaxCurrentMa(void)
 	return CONFIG_KTD202X_MAX_CURRENT_MA;
 }
 
-static const struct led_info* ktd202x_led_to_info(const struct ktd202x_config* const config, const uint32_t led_index)
+static const struct led_info* ktd202xLedToInfo(const struct ktd202x_config* const config, const uint32_t led_index)
 {
 	if (led_index < config->num_leds)
 		return &config->leds_info[led_index];
@@ -824,12 +824,12 @@ static const struct led_info* ktd202x_led_to_info(const struct ktd202x_config* c
 	return NULL;
 }
 
-static inline uint8_t ktd202x_led_mode_shift(const uint32_t hardware_channel)
+static inline uint8_t ktd202xLedModeShift(const uint32_t hardware_channel)
 {
 	return (hardware_channel * 2);
 }
 
-static inline uint8_t ktd202x_map_channel(const struct ktd202x_config* const config, const uint8_t color_index)
+static inline uint8_t ktd202xMapChannel(const struct ktd202x_config* const config, const uint8_t color_index)
 {
 	uint8_t hardware_channel = color_index;
 
@@ -846,21 +846,21 @@ static inline uint8_t ktd202x_map_channel(const struct ktd202x_config* const con
 }
 
 // Convert 0-100 brightness percentage to register value, capped by max current
-static inline uint8_t ktd202x_brightness_to_current(const uint8_t brightness)
+static inline uint8_t ktd202xBrightnessToCurrent(const uint8_t brightness)
 {
 	const uint32_t clamped = MIN(brightness, 100U);
 	return (uint8_t)((clamped * KTD202X_MAX_BRIGHTNESS) / 100U);
 }
 
 // Convert 0-255 color value to register value, capped by max current
-static inline uint8_t ktd202x_color_to_current(const uint8_t color)
+static inline uint8_t ktd202xColorToCurrent(const uint8_t color)
 {
 	return (uint8_t)(((uint32_t)color * KTD202X_MAX_BRIGHTNESS) / 255U);
 }
 
 /* Calculate flash period register value from period in ms.
  * Datasheet: value=0 -> 128ms, value>=1 -> 256 + value*128 ms */
-static int ktd202x_calc_flash_period(const uint32_t period_ms, uint8_t* const register_value)
+static int ktd202xCalcFlashPeriod(const uint32_t period_ms, uint8_t* const register_value)
 {
 	if (period_ms < KTD202X_FLASH_PERIOD_MIN_MS)
 		return -EINVAL;
@@ -878,7 +878,7 @@ static int ktd202x_calc_flash_period(const uint32_t period_ms, uint8_t* const re
 }
 
 // Calculate PWM duty cycle register value
-static uint8_t ktd202x_calc_pwm_duty(const uint32_t delay_on, const uint32_t period)
+static uint8_t ktd202xCalcPWMDuty(const uint32_t delay_on, const uint32_t period)
 {
 	if (period == 0)
 		return 0;
@@ -887,7 +887,7 @@ static uint8_t ktd202x_calc_pwm_duty(const uint32_t delay_on, const uint32_t per
 }
 
 // Convert time in ms to rise/fall register value (0-15)
-static uint8_t ktd202x_time_to_ramp_value(const uint32_t time_ms)
+static uint8_t ktd202xTimeToRampValue(const uint32_t time_ms)
 {
 	if (time_ms < KTD202X_RAMP_TIME_MIN_MS)
 		return 0;
@@ -898,14 +898,14 @@ static uint8_t ktd202x_time_to_ramp_value(const uint32_t time_ms)
 
 /* Configure breathing: set flash period, 50% duty, PWM mode on all channels.
  * Caller must hold data->lock. Channel brightness must already be set. */
-static int ktd202x_configure_breathe(
+static int ktd202xConfigureBreathe(
 	const struct ktd202x_config* const config,
 	struct ktd202x_data* const data,
 	const struct led_info* const led_info,
 	const uint32_t period_ms)
 {
 	uint8_t flash_period_register;
-	if (ktd202x_calc_flash_period(period_ms, &flash_period_register) < 0)
+	if (ktd202xCalcFlashPeriod(period_ms, &flash_period_register) < 0)
 		return -EINVAL;
 
 	// Preserve Reg1[7] ramp linear bit
@@ -924,8 +924,8 @@ static int ktd202x_configure_breathe(
 	uint8_t new_led_enable_register = data->led_enable_register;
 	for (uint8_t color_channel_index = 0; color_channel_index < led_info->num_colors; color_channel_index++)
 	{
-		const uint8_t hardware_channel = ktd202x_map_channel(config, led_info->index + color_channel_index);
-		const uint8_t shift = ktd202x_led_mode_shift(hardware_channel);
+		const uint8_t hardware_channel = ktd202xMapChannel(config, led_info->index + color_channel_index);
+		const uint8_t shift = ktd202xLedModeShift(hardware_channel);
 		new_led_enable_register &= ~(KTD202X_LED_MODE_MASK << shift);
 		new_led_enable_register |= (KTD202X_LED_MODE_PWM1 << shift);
 	}
@@ -938,10 +938,10 @@ static int ktd202x_configure_breathe(
 	return ret;
 }
 
-static int ktd202x_get_info(const struct device* const dev, const uint32_t led_index, const struct led_info** info)
+static int ktd202xGetInfo(const struct device* const dev, const uint32_t led_index, const struct led_info** info)
 {
 	const struct ktd202x_config* const config = dev->config;
-	const struct led_info* const led_info = ktd202x_led_to_info(config, led_index);
+	const struct led_info* const led_info = ktd202xLedToInfo(config, led_index);
 
 	if (led_info == NULL)
 		return -EINVAL;
@@ -950,16 +950,16 @@ static int ktd202x_get_info(const struct device* const dev, const uint32_t led_i
 	return 0;
 }
 
-static int ktd202x_set_brightness(const struct device* const dev, const uint32_t led_index, const uint8_t brightness)
+static int ktd202xSetBrightness(const struct device* const dev, const uint32_t led_index, const uint8_t brightness)
 {
 	const struct ktd202x_config* const config = dev->config;
-	const struct led_info* const led_info = ktd202x_led_to_info(config, led_index);
+	const struct led_info* const led_info = ktd202xLedToInfo(config, led_index);
 
 	if (led_info == NULL)
 		return -EINVAL;
 
 	struct ktd202x_data* const data = dev->data;
-	const uint8_t current_value = ktd202x_brightness_to_current(brightness);
+	const uint8_t current_value = ktd202xBrightnessToCurrent(brightness);
 
 	if (k_mutex_lock(&data->lock, K_MSEC(100)) != 0)
 	{
@@ -970,7 +970,7 @@ static int ktd202x_set_brightness(const struct device* const dev, const uint32_t
 	// Set same brightness on all channels of this LED
 	for (uint8_t color_channel_index = 0; color_channel_index < led_info->num_colors; color_channel_index++)
 	{
-		const uint8_t hardware_channel = ktd202x_map_channel(config, led_info->index + color_channel_index);
+		const uint8_t hardware_channel = ktd202xMapChannel(config, led_info->index + color_channel_index);
 		const int ret = i2c_reg_write_byte_dt(
 			&config->i2c, KTD202X_REG_LED1 + hardware_channel, current_value);
 		if (ret < 0)
@@ -986,8 +986,8 @@ static int ktd202x_set_brightness(const struct device* const dev, const uint32_t
 
 	for (uint8_t color_channel_index = 0; color_channel_index < led_info->num_colors; color_channel_index++)
 	{
-		const uint8_t hardware_channel = ktd202x_map_channel(config, led_info->index + color_channel_index);
-		const uint8_t shift = ktd202x_led_mode_shift(hardware_channel);
+		const uint8_t hardware_channel = ktd202xMapChannel(config, led_info->index + color_channel_index);
+		const uint8_t shift = ktd202xLedModeShift(hardware_channel);
 		new_led_enable_register &= ~(KTD202X_LED_MODE_MASK << shift);
 		new_led_enable_register |= (mode << shift);
 	}
@@ -1002,10 +1002,10 @@ static int ktd202x_set_brightness(const struct device* const dev, const uint32_t
 	return ret;
 }
 
-static int ktd202x_set_color(const struct device* const dev, const uint32_t led_index, const uint8_t num_colors, const uint8_t* const color)
+static int ktd202xSetColor(const struct device* const dev, const uint32_t led_index, const uint8_t num_colors, const uint8_t* const color)
 {
 	const struct ktd202x_config* const config = dev->config;
-	const struct led_info* const led_info = ktd202x_led_to_info(config, led_index);
+	const struct led_info* const led_info = ktd202xLedToInfo(config, led_index);
 
 	if (led_info == NULL || color == NULL || led_info->num_colors != num_colors)
 		return -EINVAL;
@@ -1022,8 +1022,8 @@ static int ktd202x_set_color(const struct device* const dev, const uint32_t led_
 
 	for (uint8_t color_channel_index = 0; color_channel_index < num_colors; color_channel_index++)
 	{
-		const uint8_t hardware_channel = ktd202x_map_channel(config, led_info->index + color_channel_index);
-		const uint8_t led_current = ktd202x_color_to_current(color[color_channel_index]);
+		const uint8_t hardware_channel = ktd202xMapChannel(config, led_info->index + color_channel_index);
+		const uint8_t led_current = ktd202xColorToCurrent(color[color_channel_index]);
 
 		const int ret = i2c_reg_write_byte_dt(
 			&config->i2c, KTD202X_REG_LED1 + hardware_channel, led_current);
@@ -1033,7 +1033,7 @@ static int ktd202x_set_color(const struct device* const dev, const uint32_t led_
 			return ret;
 		}
 
-		const uint8_t shift = ktd202x_led_mode_shift(hardware_channel);
+		const uint8_t shift = ktd202xLedModeShift(hardware_channel);
 		const uint8_t mode = (color[color_channel_index] > 0) ? KTD202X_LED_MODE_ON : KTD202X_LED_MODE_OFF;
 
 		new_led_enable_register &= ~(KTD202X_LED_MODE_MASK << shift);
@@ -1050,10 +1050,10 @@ static int ktd202x_set_color(const struct device* const dev, const uint32_t led_
 	return ret;
 }
 
-static int ktd202x_on(const struct device* const dev, const uint32_t led_index)
+static int ktd202xOn(const struct device* const dev, const uint32_t led_index)
 {
 	const struct ktd202x_config* const config = dev->config;
-	const struct led_info* const led_info = ktd202x_led_to_info(config, led_index);
+	const struct led_info* const led_info = ktd202xLedToInfo(config, led_index);
 
 	if (led_info == NULL)
 		return -ENODEV;
@@ -1070,7 +1070,7 @@ static int ktd202x_on(const struct device* const dev, const uint32_t led_index)
 
 	for (uint8_t color_channel_index = 0; color_channel_index < led_info->num_colors; color_channel_index++)
 	{
-		const uint8_t hardware_channel = ktd202x_map_channel(config, led_info->index + color_channel_index);
+		const uint8_t hardware_channel = ktd202xMapChannel(config, led_info->index + color_channel_index);
 		const int ret = i2c_reg_write_byte_dt(
 			&config->i2c, KTD202X_REG_LED1 + hardware_channel, KTD202X_MAX_BRIGHTNESS);
 		if (ret < 0)
@@ -1078,7 +1078,7 @@ static int ktd202x_on(const struct device* const dev, const uint32_t led_index)
 			k_mutex_unlock(&data->lock);
 			return ret;
 		}
-		const uint8_t shift = ktd202x_led_mode_shift(hardware_channel);
+		const uint8_t shift = ktd202xLedModeShift(hardware_channel);
 		new_led_enable_register &= ~(KTD202X_LED_MODE_MASK << shift);
 		new_led_enable_register |= (KTD202X_LED_MODE_ON << shift);
 	}
@@ -1093,10 +1093,10 @@ static int ktd202x_on(const struct device* const dev, const uint32_t led_index)
 	return ret;
 }
 
-static int ktd202x_off(const struct device* const dev, const uint32_t led_index)
+static int ktd202xOff(const struct device* const dev, const uint32_t led_index)
 {
 	const struct ktd202x_config* const config = dev->config;
-	const struct led_info* const led_info = ktd202x_led_to_info(config, led_index);
+	const struct led_info* const led_info = ktd202xLedToInfo(config, led_index);
 
 	if (led_info == NULL)
 		return -ENODEV;
@@ -1113,8 +1113,8 @@ static int ktd202x_off(const struct device* const dev, const uint32_t led_index)
 
 	for (uint8_t color_channel_index = 0; color_channel_index < led_info->num_colors; color_channel_index++)
 	{
-		const uint8_t hardware_channel = ktd202x_map_channel(config, led_info->index + color_channel_index);
-		const uint8_t shift = ktd202x_led_mode_shift(hardware_channel);
+		const uint8_t hardware_channel = ktd202xMapChannel(config, led_info->index + color_channel_index);
+		const uint8_t shift = ktd202xLedModeShift(hardware_channel);
 		new_led_enable_register &= ~(KTD202X_LED_MODE_MASK << shift);
 	}
 
@@ -1128,10 +1128,10 @@ static int ktd202x_off(const struct device* const dev, const uint32_t led_index)
 	return ret;
 }
 
-static int ktd202x_blink(const struct device* const dev, const uint32_t led_index, const uint32_t delay_on, const uint32_t delay_off)
+static int ktd202xBlink(const struct device* const dev, const uint32_t led_index, const uint32_t delay_on, const uint32_t delay_off)
 {
 	const struct ktd202x_config* const config = dev->config;
-	const struct led_info* const led_info = ktd202x_led_to_info(config, led_index);
+	const struct led_info* const led_info = ktd202xLedToInfo(config, led_index);
 
 	if (led_info == NULL)
 		return -ENODEV;
@@ -1140,7 +1140,7 @@ static int ktd202x_blink(const struct device* const dev, const uint32_t led_inde
 	const uint32_t period = delay_on + delay_off;
 	uint8_t flash_period_register;
 
-	if (ktd202x_calc_flash_period(period, &flash_period_register) < 0)
+	if (ktd202xCalcFlashPeriod(period, &flash_period_register) < 0)
 		return -EINVAL;
 
 	if (k_mutex_lock(&data->lock, K_MSEC(100)) != 0)
@@ -1160,7 +1160,7 @@ static int ktd202x_blink(const struct device* const dev, const uint32_t led_inde
 		return ret;
 	}
 
-	const uint8_t pwm_duty_cycle = ktd202x_calc_pwm_duty(delay_on, period);
+	const uint8_t pwm_duty_cycle = ktd202xCalcPWMDuty(delay_on, period);
 	ret = i2c_reg_write_byte_dt(&config->i2c, KTD202X_REG_PWM1_TIMER, pwm_duty_cycle);
 	if (ret < 0)
 	{
@@ -1172,8 +1172,8 @@ static int ktd202x_blink(const struct device* const dev, const uint32_t led_inde
 
 	for (uint8_t color_channel_index = 0; color_channel_index < led_info->num_colors; color_channel_index++)
 	{
-		const uint8_t hardware_channel = ktd202x_map_channel(config, led_info->index + color_channel_index);
-		const uint8_t shift = ktd202x_led_mode_shift(hardware_channel);
+		const uint8_t hardware_channel = ktd202xMapChannel(config, led_info->index + color_channel_index);
+		const uint8_t shift = ktd202xLedModeShift(hardware_channel);
 		new_led_enable_register &= ~(KTD202X_LED_MODE_MASK << shift);
 		new_led_enable_register |= (KTD202X_LED_MODE_PWM1 << shift);
 	}
@@ -1188,7 +1188,7 @@ static int ktd202x_blink(const struct device* const dev, const uint32_t led_inde
 	return ret;
 }
 
-static int ktd202x_init(const struct device* const dev)
+static int ktd202xDeviceInit(const struct device* const dev)
 {
 	const struct ktd202x_config* const config = dev->config;
 	struct ktd202x_data* const data = dev->data;
@@ -1310,8 +1310,14 @@ static int ktd202x_init(const struct device* const dev)
 		.color_mapping = DT_CAT(color_mapping_, led_node_id),  \
 	},
 
+#define CHANNEL_MAP(inst)                                                                                      \
+	COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, channel_map),                                                       \
+				(static const uint8_t DT_CAT(ktd202x_channel_map_, inst)[] = DT_INST_PROP(inst, channel_map);), \
+				())
+
 #define KTD202X_DEFINE(inst)                                                                                    \
 	DT_INST_FOREACH_CHILD(inst, COLOR_MAPPING)                                                                  \
+	CHANNEL_MAP(inst)                                                                                           \
 	static const struct led_info DT_CAT(ktd202x_leds_, inst)[] =                                                \
 		{                                                                                                       \
 			DT_INST_FOREACH_CHILD(inst, LED_INFO)};                                                             \
@@ -1323,12 +1329,13 @@ static int ktd202x_init(const struct device* const dev)
 									  (DEVICE_DT_GET(DT_INST_PHANDLE(inst, vin_supply))), (NULL)),              \
 			.num_leds = ARRAY_SIZE(DT_CAT(ktd202x_leds_, inst)),                                                \
 			.leds_info = DT_CAT(ktd202x_leds_, inst),                                                           \
-			.channel_map = COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, channel_map),                                \
-									   (DT_INST_PROP(inst, channel_map)), (NULL)),                              \
-			.num_channels = COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, channel_map),                               \
-										(DT_INST_PROP_LEN(inst, channel_map)), (KTD202X_DEFAULT_NUM_CHANNELS)), \
+			.channel_map = COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, channel_map),                               \
+									   (DT_CAT(ktd202x_channel_map_, inst)), (NULL)),                           \
+			.num_channels = COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, channel_map),                              \
+										(DT_INST_PROP_LEN(inst, channel_map)),                                  \
+										(KTD202X_DEFAULT_NUM_CHANNELS)),                                        \
 	};                                                                                                          \
-	DEVICE_DT_INST_DEFINE(inst, ktd202x_init, NULL,                                                             \
+	DEVICE_DT_INST_DEFINE(inst, ktd202xDeviceInit, NULL,                                                             \
 						  &DT_CAT(ktd202x_data_, inst),                                                         \
 						  &DT_CAT(ktd202x_config_, inst),                                                       \
 						  POST_KERNEL, CONFIG_LED_INIT_PRIORITY,                                                \
