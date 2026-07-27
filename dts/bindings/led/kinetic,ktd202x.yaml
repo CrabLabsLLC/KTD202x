@@ -20,6 +20,7 @@ description: |
       compatible = "kinetic,ktd202x";
       reg = <0x30>;
       status = "okay";
+      wake-gpios = <&gpio1 4 (GPIO_ACTIVE_LOW | GPIO_OPEN_DRAIN)>;
 
       led_0 {
         label = "RGB LED";
@@ -82,6 +83,14 @@ properties:
   vin-supply:
     type: phandle
     description: Regulator that powers the KTD202x chip
+
+  wake-gpios:
+    type: phandle-array
+    description: |
+      Optional GPIO view of the I2C SDA line used to wake the controller from
+      shutdown. The pin must be active-low and open-drain. The driver holds SDA
+      low for at least 10 us, releases it, and waits for the controller wake
+      delay before its first I2C transaction.
 
   "#address-cells":
     const: 1

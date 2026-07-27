@@ -29,6 +29,7 @@ Add to your project's `west.yml` or include directly as a Zephyr module.
 ### Single RGB LED (Standard Wiring)
 
 ```dts
+#include <zephyr/dt-bindings/gpio/gpio.h>
 #include <zephyr/dt-bindings/led/led.h>
 
 &i2c0 {
@@ -36,6 +37,7 @@ Add to your project's `west.yml` or include directly as a Zephyr module.
         compatible = "kinetic,ktd202x";
         reg = <0x30>;
         status = "okay";
+        wake-gpios = <&gpio1 4 (GPIO_ACTIVE_LOW | GPIO_OPEN_DRAIN)>;
 
         led_rgb {
             label = "Status LED";
@@ -47,6 +49,11 @@ Add to your project's `west.yml` or include directly as a Zephyr module.
     };
 };
 ```
+
+`wake-gpios` is the GPIO view of the controller's SDA line. Configure it as
+active-low and open-drain when the controller can enter its bus-line shutdown
+state. The driver uses it only for the datasheet wake pulse before the first
+I2C transaction.
 
 ### With Channel Remapping (e.g., RBG Wiring)
 
