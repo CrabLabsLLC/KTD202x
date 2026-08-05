@@ -410,7 +410,11 @@ int ktd202xSetEnabled(const struct device* const dev, const bool is_enabled)
 
 	if (is_enabled)
 		new_enable_reset_register |= KTD202X_EN_RST_EN_ALWAYS;
-	// else: EN_SCL_SDA = 0x00, bits already cleared by mask
+	else
+		new_enable_reset_register |= KTD202X_EN_RST_EN_SCL_TOG;
+	/* EN_SCL_TOG (mode 01) shuts down once the I2C bus goes idle, reaching
+	 * the datasheet's ~0.1-1uA shutdown current. EN_SCL_SDA (mode 00, all
+	 * bits clear) stays powered because idle I2C lines sit high. */
 
 	ret = ktd202xWriteCachedRegister(config, KTD202X_REG_EN_RST, new_enable_reset_register, &data->en_rst_register);
 
@@ -865,6 +869,16 @@ static inline uint8_t ktd202xColorToCurrent(const uint8_t color)
 	return (uint8_t)(((uint32_t)color * KTD202X_MAX_BRIGHTNESS) / 255U);
 }
 
+// Convert a flash period register code to its real period in ms.
+// Datasheet: value=0 -> 128ms, value>=1 -> 256 + value*128 ms
+static inline uint32_t ktd202xFlashPeriodCodeToMs(const uint8_t code)
+{
+	if (code == 0)
+		return 128U;
+
+	return 256U + ((uint32_t)code * 128U);
+}
+
 /* Calculate flash period register value from period in ms.
  * Datasheet: value=0 -> 128ms, value>=1 -> 256 + value*128 ms */
 static int ktd202xCalcFlashPeriod(const uint32_t period_ms, uint8_t* const register_value)
@@ -872,15 +886,35 @@ static int ktd202xCalcFlashPeriod(const uint32_t period_ms, uint8_t* const regis
 	if (period_ms < KTD202X_FLASH_PERIOD_MIN_MS)
 		return -EINVAL;
 
+	uint8_t floor_code;
+
 	// Value 0 = 128ms. For values >= 1: period = 256 + value*128
 	if (period_ms < 384)
 	{
-		*register_value = 0;
-		return 0;
+		floor_code = 0;
+	}
+	else
+	{
+		const uint32_t calculated_register_value = (period_ms - 256) / 128;
+		floor_code = (uint8_t)MIN(calculated_register_value, KTD202X_FLASH_PERIOD_MAX_VALUE);
 	}
 
-	const uint32_t calculated_register_value = (period_ms - 256) / 128;
-	*register_value = (uint8_t)MIN(calculated_register_value, KTD202X_FLASH_PERIOD_MAX_VALUE);
+	const uint32_t floor_period_ms = ktd202xFlashPeriodCodeToMs(floor_code);
+
+	// Pick whichever of floor/ceiling codes lands closer to the requested
+	// period, instead of always flooring (Reg1 code 0=128ms jumps straight
+	// to code 1=384ms, so a floor-only pick left [128,383]ms stuck at 128ms).
+	if (floor_code < KTD202X_FLASH_PERIOD_MAX_VALUE)
+	{
+		const uint32_t ceil_period_ms = ktd202xFlashPeriodCodeToMs(floor_code + 1);
+		if ((ceil_period_ms - period_ms) < (period_ms - floor_period_ms))
+		{
+			*register_value = floor_code + 1;
+			return 0;
+		}
+	}
+
+	*register_value = floor_code;
 	return 0;
 }
 
