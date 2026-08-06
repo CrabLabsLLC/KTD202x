@@ -149,7 +149,7 @@ static inline uint8_t ktd202xColorToCurrent(const uint8_t color);
 static int ktd202xCalcFlashPeriod(const uint32_t period_ms, uint8_t* const register_value);
 static uint8_t ktd202xCalcPWMDuty(const uint32_t delay_on, const uint32_t period);
 static uint8_t ktd202xTimeToRampValue(const uint32_t time_ms);
-static int ktd202xConfigureBreathe(const struct ktd202x_config* const config, struct ktd202x_data* const data, const struct led_info* const led_info, const uint32_t period_ms);
+static int ktd202xConfigureBreathe(const struct ktd202x_config* const config, struct ktd202x_data* const data, const struct led_info* const led_info, const uint32_t period_ms, const uint8_t* const currents);
 
 // Zephyr LED API
 static int ktd202xGetInfo(const struct device* const dev, const uint32_t led_index, const struct led_info** info);
@@ -271,6 +271,7 @@ int ktd202xBreathe(const struct device* const dev, const uint32_t led_index, con
 
 	struct ktd202x_data* const data = dev->data;
 	const uint8_t current_value = ktd202xBrightnessToCurrent(brightness);
+	uint8_t currents[KTD202X_MAX_CHANNELS];
 
 	int ret = ktd202xLock(data);
 	if (ret < 0)
@@ -286,9 +287,10 @@ int ktd202xBreathe(const struct device* const dev, const uint32_t led_index, con
 			k_mutex_unlock(&data->lock);
 			return ret;
 		}
+		currents[color_channel_index] = current_value;
 	}
 
-	ret = ktd202xConfigureBreathe(config, data, led_info, period_ms);
+	ret = ktd202xConfigureBreathe(config, data, led_info, period_ms, currents);
 
 	k_mutex_unlock(&data->lock);
 
@@ -309,6 +311,7 @@ int ktd202xBreatheColor(const struct device* const dev, const uint32_t led_index
 		return -EINVAL;
 
 	struct ktd202x_data* const data = dev->data;
+	uint8_t currents[KTD202X_MAX_CHANNELS];
 
 	int ret = ktd202xLock(data);
 	if (ret < 0)
@@ -325,9 +328,10 @@ int ktd202xBreatheColor(const struct device* const dev, const uint32_t led_index
 			k_mutex_unlock(&data->lock);
 			return ret;
 		}
+		currents[color_channel_index] = current_value;
 	}
 
-	ret = ktd202xConfigureBreathe(config, data, led_info, period_ms);
+	ret = ktd202xConfigureBreathe(config, data, led_info, period_ms, currents);
 
 	k_mutex_unlock(&data->lock);
 	return ret;
@@ -939,7 +943,7 @@ static uint8_t ktd202xTimeToRampValue(const uint32_t time_ms)
 
 /* Configure breathing: set flash period, 50% duty, PWM mode on all channels.
  * Caller must hold data->lock. Channel brightness must already be set. */
-static int ktd202xConfigureBreathe(const struct ktd202x_config* const config, struct ktd202x_data* const data, const struct led_info* const led_info, const uint32_t period_ms)
+static int ktd202xConfigureBreathe(const struct ktd202x_config* const config, struct ktd202x_data* const data, const struct led_info* const led_info, const uint32_t period_ms, const uint8_t* const currents)
 {
 	uint8_t flash_period_register;
 	if (ktd202xCalcFlashPeriod(period_ms, &flash_period_register) < 0)
@@ -955,14 +959,15 @@ static int ktd202xConfigureBreathe(const struct ktd202x_config* const config, st
 	if (ret < 0)
 		return ret;
 
-	// Build new enable register locally, commit only on success
+	// A zero-current channel still breathes visibly in PWM1 mode; force it off instead.
 	uint8_t new_led_enable_register = data->led_enable_register;
 	for (uint8_t color_channel_index = 0; color_channel_index < led_info->num_colors; color_channel_index++)
 	{
 		const uint8_t hardware_channel = ktd202xMapChannel(config, led_info->index + color_channel_index);
 		const uint8_t shift = ktd202xLedModeShift(hardware_channel);
+		const uint8_t mode = (currents[color_channel_index] > 0) ? KTD202X_LED_MODE_PWM1 : KTD202X_LED_MODE_OFF;
 		new_led_enable_register &= ~(KTD202X_LED_MODE_MASK << shift);
-		new_led_enable_register |= (KTD202X_LED_MODE_PWM1 << shift);
+		new_led_enable_register |= (mode << shift);
 	}
 
 	return ktd202xWriteCachedRegister(config, KTD202X_REG_LED_EN, new_led_enable_register, &data->led_enable_register);
