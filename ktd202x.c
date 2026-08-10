@@ -161,13 +161,6 @@ static int ktd202xBlink(const struct device* const dev, const uint32_t led_index
 
 static int ktd202xDeviceInit(const struct device* const dev);
 
-static const uint8_t ktd202x_default_channel_map[KTD202X_MAX_CHANNELS] = {
-	0,
-	1,
-	2,
-	3,
-};
-
 static DEVICE_API(led, ktd202x_led_api) = {
 	.on = ktd202xOn,
 	.off = ktd202xOff,
@@ -1315,7 +1308,16 @@ static int ktd202xDeviceInit(const struct device* const dev)
 		.color_mapping = DT_CAT(color_mapping_, led_node_id),                                                                                                                                                                                                                                              \
 	},
 
-#define CHANNEL_MAP(inst) COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, channel_map), (static const uint8_t DT_CAT(ktd202x_channel_map_, inst)[] = DT_INST_PROP(inst, channel_map);), ())
+// Named per-colour properties rather than one array: devicetree discards any property
+// whose name ends in "-map" (edtlib reserves that suffix for nexus mapping), so the former
+// channel-map was silently ignored and every board got the default order.
+#define CHANNEL_MAP(inst)                                        \
+	static const uint8_t DT_CAT(ktd202x_channel_map_, inst)[] = { \
+		DT_INST_PROP(inst, red_channel),                          \
+		DT_INST_PROP(inst, green_channel),                        \
+		DT_INST_PROP(inst, blue_channel),                         \
+		3,                                                        \
+	};
 
 #define KTD202X_DEFINE(inst)                                                                                                                                                                                                                                                                               \
 	DT_INST_FOREACH_CHILD(inst, COLOR_MAPPING)                                                                                                                                                                                                                                                             \
@@ -1328,8 +1330,8 @@ static int ktd202xDeviceInit(const struct device* const dev)
 		.vin_supply = COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, vin_supply), (DEVICE_DT_GET(DT_INST_PHANDLE(inst, vin_supply))), (NULL)),                                                                                                                                                                    \
 		.num_leds = ARRAY_SIZE(DT_CAT(ktd202x_leds_, inst)),                                                                                                                                                                                                                                               \
 		.leds_info = DT_CAT(ktd202x_leds_, inst),                                                                                                                                                                                                                                                          \
-		.channel_map = COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, channel_map), (DT_CAT(ktd202x_channel_map_, inst)), (ktd202x_default_channel_map)),                                                                                                                                                         \
-		.num_channels = COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, channel_map), (DT_INST_PROP_LEN(inst, channel_map)), (KTD202X_MAX_CHANNELS)),                                                                                                                                                              \
+		.channel_map = DT_CAT(ktd202x_channel_map_, inst),                                                                                                                                                         \
+		.num_channels = KTD202X_MAX_CHANNELS,                                                                                                                                                              \
 	};                                                                                                                                                                                                                                                                                                     \
 	DEVICE_DT_INST_DEFINE(inst, ktd202xDeviceInit, NULL, &DT_CAT(ktd202x_data_, inst), &DT_CAT(ktd202x_config_, inst), POST_KERNEL, CONFIG_LED_INIT_PRIORITY, &ktd202x_led_api);
 

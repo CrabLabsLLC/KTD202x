@@ -98,21 +98,29 @@ properties:
   "#size-cells":
     const: 0
 
-  channel-map:
-    type: array
+  red-channel:
+    type: int
+    default: 0
     description: |
-      Optional hardware channel remapping array. Maps color indices from
-      color-mapping to physical LED channels (LED1=0, LED2=1, LED3=2, LED4=3).
+      Hardware channel driving the red die (LED1=0, LED2=1, LED3=2, LED4=3).
 
-      This allows correcting for different LED wiring configurations:
-        - RGB (default): <0 1 2> - Red->LED1, Green->LED2, Blue->LED3
-        - RBG:           <0 2 1> - Red->LED1, Green->LED3, Blue->LED2
-        - GRB:           <1 0 2> - Red->LED2, Green->LED1, Blue->LED3
-        - GBR:           <2 0 1> - Red->LED3, Green->LED1, Blue->LED2
-        - BRG:           <1 2 0> - Red->LED2, Green->LED3, Blue->LED1
-        - BGR:           <2 1 0> - Red->LED3, Green->LED2, Blue->LED1
+      These three properties replace the former channel-map array. Devicetree
+      silently discards any property whose name ends in "-map": edtlib reserves
+      that suffix for nexus specifier mapping (gpio-map, interrupt-map), so
+      channel-map was never emitted and every value behaved as the default.
 
-      If not specified, direct mapping (RGB) is used.
+      Only the wiring differs between boards, so name each channel explicitly
+      rather than relying on positional order in an array.
+
+  green-channel:
+    type: int
+    default: 1
+    description: Hardware channel driving the green die (LED1=0 ... LED4=3).
+
+  blue-channel:
+    type: int
+    default: 2
+    description: Hardware channel driving the blue die (LED1=0 ... LED4=3).
 
 child-binding:
   description: LED channel configuration
