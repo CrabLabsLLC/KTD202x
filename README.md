@@ -7,7 +7,7 @@ Zephyr RTOS driver for the Kinetic Technologies KTD2026/KTD2027 I2C RGB/RGBW LED
 - Full Zephyr LED API support (`led_on`, `led_off`, `led_set_brightness`, `led_set_color`, `led_blink`)
 - Hardware PWM blinking with configurable period and duty cycle
 - Individual LED current control (0-24mA in 0.125mA steps)
-- Configurable channel mapping for different LED wiring (RGB, RBG, GRB, etc.)
+- Named per-colour channel properties for different LED wiring (RGB, RBG, GRB, etc.)
 - Support for single RGB LED or multiple individual LEDs
 - Low power modes
 
@@ -39,9 +39,9 @@ Add to your project's `west.yml` or include directly as a Zephyr module.
         status = "okay";
         wake-gpios = <&gpio1 4 (GPIO_ACTIVE_LOW | GPIO_OPEN_DRAIN)>;
 
-        led_rgb {
+        led_rgb: led_rgb@0 {
             label = "Status LED";
-            index = <0>;
+            reg = <0>;
             color-mapping = <LED_COLOR_ID_RED>,
                             <LED_COLOR_ID_GREEN>,
                             <LED_COLOR_ID_BLUE>;
@@ -57,7 +57,8 @@ I2C transaction.
 
 ### With Channel Remapping (e.g., RBG Wiring)
 
-If your LED is wired differently (e.g., Blue on LED2, Green on LED3):
+If your LED is wired differently (e.g., Blue on LED2, Green on LED3), name each
+colour's hardware channel explicitly:
 
 ```dts
 &i2c0 {
@@ -65,12 +66,14 @@ If your LED is wired differently (e.g., Blue on LED2, Green on LED3):
         compatible = "kinetic,ktd202x";
         reg = <0x30>;
         status = "okay";
-        /* Maps: R->LED1(ch0), G->LED3(ch2), B->LED2(ch1) */
-        channel-map = <0 2 1>;
+        /* R->LED1(ch0), G->LED3(ch2), B->LED2(ch1) */
+        red-channel = <0>;
+        green-channel = <2>;
+        blue-channel = <1>;
 
-        led_rgb {
+        led_rgb: led_rgb@0 {
             label = "Status LED";
-            index = <0>;
+            reg = <0>;
             color-mapping = <LED_COLOR_ID_RED>,
                             <LED_COLOR_ID_GREEN>,
                             <LED_COLOR_ID_BLUE>;
@@ -79,16 +82,27 @@ If your LED is wired differently (e.g., Blue on LED2, Green on LED3):
 };
 ```
 
-### Channel Map Reference
+These three properties replace a former `channel-map` array. Devicetree silently
+discards any property whose name ends in `-map`: edtlib reserves that suffix for
+nexus specifier mapping (`gpio-map`, `interrupt-map`), so `channel-map` never
+reached the build and every value behaved as the default. The failure was
+invisible — two different mapping values produced byte-identical output on
+hardware — which is why the properties are now named individually.
 
-| Wiring | channel-map |
-|--------|-------------|
-| RGB (default) | `<0 1 2>` or omit |
-| RBG | `<0 2 1>` |
-| GRB | `<1 0 2>` |
-| GBR | `<1 2 0>` |
-| BRG | `<2 0 1>` |
-| BGR | `<2 1 0>` |
+### Channel Reference
+
+| Wiring | red-channel | green-channel | blue-channel |
+|--------|-------------|---------------|--------------|
+| RGB (default) | `0` | `1` | `2` |
+| RBG | `0` | `2` | `1` |
+| GRB | `1` | `0` | `2` |
+| GBR | `2` | `0` | `1` |
+| BRG | `1` | `2` | `0` |
+| BGR | `2` | `1` | `0` |
+
+Each value is the hardware channel driving that colour: LED1=0, LED2=1, LED3=2,
+LED4=3. Read the table as "which channel drives this colour", not as a
+positional permutation.
 
 ### Three Separate LEDs
 
@@ -99,21 +113,21 @@ If your LED is wired differently (e.g., Blue on LED2, Green on LED3):
         reg = <0x30>;
         status = "okay";
 
-        led_r {
+        led_r: led_r@0 {
             label = "Red LED";
-            index = <0>;
+            reg = <0>;
             color-mapping = <LED_COLOR_ID_RED>;
         };
 
-        led_g {
+        led_g: led_g@1 {
             label = "Green LED";
-            index = <1>;
+            reg = <1>;
             color-mapping = <LED_COLOR_ID_GREEN>;
         };
 
-        led_b {
+        led_b: led_b@2 {
             label = "Blue LED";
-            index = <2>;
+            reg = <2>;
             color-mapping = <LED_COLOR_ID_BLUE>;
         };
     };
@@ -174,6 +188,23 @@ Start hardware PWM blinking with specified on/off times in milliseconds.
 
 ### led_get_info(dev, led, info)
 Get LED information (label, color mapping).
+
+## Vendor API (`ktd202x.h`)
+
+Beyond the Zephyr LED API, the driver exposes controller-specific entry points:
+
+- `ktd202xBreathe()` / `ktd202xBreatheColor()` — hardware fade-in/fade-out over a
+  full period, run by the controller's own timers with no CPU involvement.
+- `ktd202xSetFadeTime()`, `ktd202xSetTimeScale()`, `ktd202xSetRampLinear()`,
+  `ktd202xSetFlashPeriod()` — ramp and cadence control.
+- `ktd202xSetEnabled()`, `ktd202xSetEnableMode()`, `ktd202xReset()` — power state
+  and a return to the power-on-reset register set.
+- `ktd202xFlashOnce()`, `ktd202xSetChannelPWM()`, `ktd202xSetTimerSlot()`,
+  `ktd202xSetPWM1DutyCycle()`, `ktd202xSetPWM2DutyCycle()` — one-shot flash and
+  per-channel PWM assignment.
+- `ktd202xGetFadeTime()`, `ktd202xGetTimeScale()`, `ktd202xIsRampLinear()`,
+  `ktd202xGetLEDEnable()`, `ktd202xGetMaxBrightness()`, `ktd202xGetMaxCurrentMa()`
+  — readback.
 
 ## Hardware Notes
 
