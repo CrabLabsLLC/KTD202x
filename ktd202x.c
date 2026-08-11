@@ -1171,8 +1171,21 @@ static int ktd202xBlink(const struct device* const dev, const uint32_t led_index
 	{
 		const uint8_t hardware_channel = ktd202xMapChannel(config, led_info->index + color_channel_index);
 		const uint8_t shift = ktd202xLedModeShift(hardware_channel);
+
+		// A zero-current channel still lights visibly in PWM1 mode, so blinking a single
+		// colour would wash out to white. Read each channel's current back and drive only
+		// the ones actually carrying colour, matching ktd202xConfigureBreathe().
+		uint8_t channel_current = 0;
+		ret = i2c_reg_read_byte_dt(&config->i2c, KTD202X_REG_LED1 + hardware_channel, &channel_current);
+		if (ret < 0)
+		{
+			k_mutex_unlock(&data->lock);
+			return ret;
+		}
+
+		const uint8_t mode = (channel_current > 0) ? KTD202X_LED_MODE_PWM1 : KTD202X_LED_MODE_OFF;
 		new_led_enable_register &= ~(KTD202X_LED_MODE_MASK << shift);
-		new_led_enable_register |= (KTD202X_LED_MODE_PWM1 << shift);
+		new_led_enable_register |= (mode << shift);
 	}
 
 	ret = ktd202xWriteCachedRegister(config, KTD202X_REG_LED_EN, new_led_enable_register, &data->led_enable_register);
