@@ -50,7 +50,7 @@ Add to your project's `west.yml` or include directly as a Zephyr module.
 };
 ```
 
-`wake-gpios` is the GPIO view of the controller's SDA line. Configure it as
+`wake-gpios` is optional and omitted on most boards. It is the GPIO view of the controller's SDA line, so declaring it hands that pin to this driver; only wire it where the controller is actually put into shutdown and the I2C bus is otherwise idle. Configure it as
 active-low and open-drain when the controller can enter its bus-line shutdown
 state. The driver uses it only for the datasheet wake pulse before the first
 I2C transaction.

@@ -87,8 +87,9 @@ properties:
   wake-gpios:
     type: phandle-array
     description: |
-      Optional GPIO view of the I2C SDA line used to wake the controller from
-      shutdown. The pin must be active-low and open-drain. The driver holds SDA
+      Optional, and omitted on most boards. GPIO view of the I2C SDA line used
+      to wake the controller from shutdown; declaring it hands that pin to this
+      driver, so only set it where the controller is actually shut down. The pin must be active-low and open-drain. The driver holds SDA
       low for at least 10 us, releases it, and waits for the controller wake
       delay before its first I2C transaction.
 
