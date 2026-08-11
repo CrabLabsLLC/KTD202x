@@ -16,6 +16,8 @@
 
 #define DT_DRV_COMPAT kinetic_ktd202x
 
+#include <string.h>
+
 #include <zephyr/device.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/i2c.h>
@@ -134,12 +136,14 @@ struct ktd202x_data
 	uint8_t en_rst_register; ///< Cached EN_RST register value
 	uint8_t flash_period_register; ///< Cached FLASH_PERIOD (Reg1) - includes ramp bit
 	uint8_t trise_tfall_register; ///< Cached TRISE_TFALL register value
+	uint8_t channel_current_register[KTD202X_MAX_CHANNELS]; ///< Cached per-channel LEDx current values
 };
 
 // Helpers
 static int ktd202xLock(struct ktd202x_data* const data);
 static int ktd202xValidateConfig(const struct ktd202x_config* const config);
 static int ktd202xWriteCachedRegister(const struct ktd202x_config* const config, const uint8_t register_address, const uint8_t value, uint8_t* const cache);
+static int ktd202xWriteChannelCurrent(const struct ktd202x_config* const config, struct ktd202x_data* const data, const uint8_t hardware_channel, const uint8_t current_value);
 static void ktd202xResetCache(struct ktd202x_data* const data);
 static const struct led_info* ktd202xLedToInfo(const struct ktd202x_config* const config, const uint32_t led_index);
 static inline uint8_t ktd202xLedModeShift(const uint32_t hardware_channel);
@@ -274,7 +278,7 @@ int ktd202xBreathe(const struct device* const dev, const uint32_t led_index, con
 	for (uint8_t color_channel_index = 0; color_channel_index < led_info->num_colors; color_channel_index++)
 	{
 		const uint8_t hardware_channel = ktd202xMapChannel(config, led_info->index + color_channel_index);
-		ret = i2c_reg_write_byte_dt(&config->i2c, KTD202X_REG_LED1 + hardware_channel, current_value);
+		ret = ktd202xWriteChannelCurrent(config, data, hardware_channel, current_value);
 		if (ret < 0)
 		{
 			k_mutex_unlock(&data->lock);
@@ -315,7 +319,7 @@ int ktd202xBreatheColor(const struct device* const dev, const uint32_t led_index
 	{
 		const uint8_t hardware_channel = ktd202xMapChannel(config, led_info->index + color_channel_index);
 		const uint8_t current_value = ktd202xColorToCurrent(color[color_channel_index]);
-		ret = i2c_reg_write_byte_dt(&config->i2c, KTD202X_REG_LED1 + hardware_channel, current_value);
+		ret = ktd202xWriteChannelCurrent(config, data, hardware_channel, current_value);
 		if (ret < 0)
 		{
 			k_mutex_unlock(&data->lock);
@@ -452,7 +456,7 @@ int ktd202xFlashOnce(const struct device* const dev, const uint32_t led_index, c
 	for (uint8_t color_channel_index = 0; color_channel_index < led_info->num_colors; color_channel_index++)
 	{
 		const uint8_t hardware_channel = ktd202xMapChannel(config, led_info->index + color_channel_index);
-		ret = i2c_reg_write_byte_dt(&config->i2c, KTD202X_REG_LED1 + hardware_channel, current_value);
+		ret = ktd202xWriteChannelCurrent(config, data, hardware_channel, current_value);
 		if (ret < 0)
 		{
 			k_mutex_unlock(&data->lock);
@@ -823,12 +827,30 @@ static int ktd202xWriteCachedRegister(const struct ktd202x_config* const config,
 }
 
 /**
+ * @brief Write one channel's current register and cache the value.
+ *
+ * @param[in] config            Driver configuration.
+ * @param[in,out] data          Driver runtime state holding the cache.
+ * @param[in] hardware_channel  Channel index on the part.
+ * @param[in] current_value     Current register value to write.
+ * @return 0 on success, or a negative errno from the I2C write.
+ */
+static int ktd202xWriteChannelCurrent(const struct ktd202x_config* const config, struct ktd202x_data* const data, const uint8_t hardware_channel, const uint8_t current_value)
+{
+	if (hardware_channel >= KTD202X_MAX_CHANNELS)
+		return -EINVAL;
+
+	return ktd202xWriteCachedRegister(config, KTD202X_REG_LED1 + hardware_channel, current_value, &data->channel_current_register[hardware_channel]);
+}
+
+/**
  * @brief Restore cached state to the hardware power-on reset values.
  *
  * @param[out] data Driver runtime state.
  */
 static void ktd202xResetCache(struct ktd202x_data* const data)
 {
+	memset(data->channel_current_register, 0, sizeof(data->channel_current_register));
 	data->en_rst_register = 0;
 	data->flash_period_register = 0;
 	data->led_enable_register = 0;
@@ -997,7 +1019,7 @@ static int ktd202xSetBrightness(const struct device* const dev, const uint32_t l
 	for (uint8_t color_channel_index = 0; color_channel_index < led_info->num_colors; color_channel_index++)
 	{
 		const uint8_t hardware_channel = ktd202xMapChannel(config, led_info->index + color_channel_index);
-		ret = i2c_reg_write_byte_dt(&config->i2c, KTD202X_REG_LED1 + hardware_channel, current_value);
+		ret = ktd202xWriteChannelCurrent(config, data, hardware_channel, current_value);
 		if (ret < 0)
 		{
 			k_mutex_unlock(&data->lock);
@@ -1044,7 +1066,7 @@ static int ktd202xSetColor(const struct device* const dev, const uint32_t led_in
 		const uint8_t hardware_channel = ktd202xMapChannel(config, led_info->index + color_channel_index);
 		const uint8_t led_current = ktd202xColorToCurrent(color[color_channel_index]);
 
-		ret = i2c_reg_write_byte_dt(&config->i2c, KTD202X_REG_LED1 + hardware_channel, led_current);
+		ret = ktd202xWriteChannelCurrent(config, data, hardware_channel, led_current);
 		if (ret < 0)
 		{
 			k_mutex_unlock(&data->lock);
@@ -1083,7 +1105,7 @@ static int ktd202xOn(const struct device* const dev, const uint32_t led_index)
 	for (uint8_t color_channel_index = 0; color_channel_index < led_info->num_colors; color_channel_index++)
 	{
 		const uint8_t hardware_channel = ktd202xMapChannel(config, led_info->index + color_channel_index);
-		ret = i2c_reg_write_byte_dt(&config->i2c, KTD202X_REG_LED1 + hardware_channel, KTD202X_MAX_BRIGHTNESS);
+		ret = ktd202xWriteChannelCurrent(config, data, hardware_channel, KTD202X_MAX_BRIGHTNESS);
 		if (ret < 0)
 		{
 			k_mutex_unlock(&data->lock);
@@ -1172,18 +1194,7 @@ static int ktd202xBlink(const struct device* const dev, const uint32_t led_index
 		const uint8_t hardware_channel = ktd202xMapChannel(config, led_info->index + color_channel_index);
 		const uint8_t shift = ktd202xLedModeShift(hardware_channel);
 
-		// A zero-current channel still lights visibly in PWM1 mode, so blinking a single
-		// colour would wash out to white. Read each channel's current back and drive only
-		// the ones actually carrying colour, matching ktd202xConfigureBreathe().
-		uint8_t channel_current = 0;
-		ret = i2c_reg_read_byte_dt(&config->i2c, KTD202X_REG_LED1 + hardware_channel, &channel_current);
-		if (ret < 0)
-		{
-			k_mutex_unlock(&data->lock);
-			return ret;
-		}
-
-		const uint8_t mode = (channel_current > 0) ? KTD202X_LED_MODE_PWM1 : KTD202X_LED_MODE_OFF;
+		const uint8_t mode = (data->channel_current_register[hardware_channel] > 0) ? KTD202X_LED_MODE_PWM1 : KTD202X_LED_MODE_OFF; // A zero-current channel still lights in PWM1, washing one colour out to white
 		new_led_enable_register &= ~(KTD202X_LED_MODE_MASK << shift);
 		new_led_enable_register |= (mode << shift);
 	}
