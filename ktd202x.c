@@ -12,7 +12,7 @@
  */
 
 /* Copyright (c) 2025 Crab Labs LLC */
-/* SPDX-License-Identifier: Apache-2.0 */
+/* SPDX-License-Identifier: MIT */
 
 #define DT_DRV_COMPAT kinetic_ktd202x
 

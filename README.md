@@ -220,4 +220,4 @@ Beyond the Zephyr LED API, the driver exposes controller-specific entry points:
 
 ## License
 
-SPDX-License-Identifier: Apache-2.0
+SPDX-License-Identifier: MIT

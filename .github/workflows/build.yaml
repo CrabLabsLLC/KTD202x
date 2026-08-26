@@ -1,14 +1,26 @@
-name: Checks
+name: build
 
 on:
   pull_request:
+    branches: [main, main]
+    paths-ignore: ['**.md', 'LICENSE', '.gitignore']
   push:
     branches: [main]
+    paths-ignore: ['**.md', 'LICENSE', '.gitignore']
   workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   conventions:
+    if: github.event_name != \'pull_request\' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - uses: actions/checkout@v4

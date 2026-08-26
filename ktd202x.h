@@ -12,7 +12,7 @@
  */
 
 /* Copyright (c) 2025 Crab Labs LLC */
-/* SPDX-License-Identifier: Apache-2.0 */
+/* SPDX-License-Identifier: MIT */
 
 #pragma once
 #ifndef KTD202X_H

@@ -1,5 +1,5 @@
 # Copyright (c) 2025 Crab Labs LLC
-# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: MIT
 
 description: |
   Kinetic KTD2026/KTD2027 I2C RGB/RGBW LED Controller
