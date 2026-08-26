@@ -1,0 +1,38 @@
+name: Checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  conventions:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ASCII only
+        run: |
+          if grep -rlP '[^\x00-\x7F]' --include="*.c" --include="*.h" --include="*.yaml" \
+               --include="*.dts*" --include="Kconfig*" --include="CMakeLists.txt" .; then
+            echo "::error::non-ASCII characters in a source file"
+            exit 1
+          fi
+
+      - name: Every public header carries a file block
+        run: |
+          missing=0
+          for h in $(find include -name "*.h" 2>/dev/null); do
+            grep -q "@file" "$h" || { echo "::error file=$h::no Doxygen @file block"; missing=1; }
+            grep -q "@brief" "$h" || { echo "::error file=$h::no @brief"; missing=1; }
+          done
+          exit $missing
+
+      - name: No trailing whitespace
+        run: |
+          if grep -rnP '[ \t]+$' --include="*.c" --include="*.h" .; then
+            echo "::error::trailing whitespace"
+            exit 1
+          fi
