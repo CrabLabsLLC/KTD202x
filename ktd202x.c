@@ -120,7 +120,7 @@ BUILD_ASSERT(KTD202X_DEFAULT_TFALL <= KTD202X_RAMP_TIME_MAX_VALUE, "Default fall
 
 struct ktd202x_config
 {
-	struct i2c_dt_spec i2c;
+	struct i2c_dt_spec* const i2c; ///< Resolved at init: the variant fixes the address, so it is not known until the part answers
 	struct gpio_dt_spec wake_gpio;
 	const struct device* vin_supply;
 	uint8_t num_leds;
@@ -142,6 +142,8 @@ struct ktd202x_data
 // Helpers
 static int ktd202xLock(struct ktd202x_data* const data);
 static int ktd202xValidateConfig(const struct ktd202x_config* const config);
+static bool ktd202xAddressAnswers(const struct i2c_dt_spec* const i2c, const uint8_t address);
+static int ktd202xResolveAddress(const struct device* const dev);
 static int ktd202xWriteCachedRegister(const struct ktd202x_config* const config, const uint8_t register_address, const uint8_t value, uint8_t* const cache);
 static int ktd202xWriteChannelCurrent(const struct ktd202x_config* const config, struct ktd202x_data* const data, const uint8_t hardware_channel, const uint8_t current_value);
 static void ktd202xResetCache(struct ktd202x_data* const data);
@@ -346,7 +348,7 @@ int ktd202xSetPWM2DutyCycle(const struct device* const dev, const uint8_t duty_c
 	if (ret < 0)
 		return ret;
 
-	ret = i2c_reg_write_byte_dt(&config->i2c, KTD202X_REG_PWM2_TIMER, duty_cycle);
+	ret = i2c_reg_write_byte_dt(config->i2c, KTD202X_REG_PWM2_TIMER, duty_cycle);
 
 	k_mutex_unlock(&data->lock);
 
@@ -370,7 +372,7 @@ int ktd202xReset(const struct device* const dev)
 	/* Datasheet p17: the reset command intentionally NACKs the last byte.
 	 * Zephyr returns -EIO in that case, which is the expected outcome
 	 * here; only a different error code indicates a real failure. */
-	ret = i2c_reg_write_byte_dt(&config->i2c, KTD202X_REG_EN_RST, KTD202X_EN_RST_RESET_CHIP);
+	ret = i2c_reg_write_byte_dt(config->i2c, KTD202X_REG_EN_RST, KTD202X_EN_RST_RESET_CHIP);
 	if (ret != 0 && ret != -EIO)
 	{
 		k_mutex_unlock(&data->lock);
@@ -476,7 +478,7 @@ int ktd202xFlashOnce(const struct device* const dev, const uint32_t led_index, c
 	}
 
 	// Set PWM1 duty cycle for on-time
-	ret = i2c_reg_write_byte_dt(&config->i2c, KTD202X_REG_PWM1_TIMER, pwm_duty_cycle);
+	ret = i2c_reg_write_byte_dt(config->i2c, KTD202X_REG_PWM1_TIMER, pwm_duty_cycle);
 	if (ret < 0)
 	{
 		k_mutex_unlock(&data->lock);
@@ -708,7 +710,7 @@ int ktd202xSetPWM1DutyCycle(const struct device* const dev, const uint8_t duty_c
 	if (ret < 0)
 		return ret;
 
-	ret = i2c_reg_write_byte_dt(&config->i2c, KTD202X_REG_PWM1_TIMER, duty_cycle);
+	ret = i2c_reg_write_byte_dt(config->i2c, KTD202X_REG_PWM1_TIMER, duty_cycle);
 
 	k_mutex_unlock(&data->lock);
 
@@ -807,6 +809,82 @@ static int ktd202xValidateConfig(const struct ktd202x_config* const config)
 }
 
 /**
+ * @brief Addresses a KTD202x can answer at.
+ *
+ * The package has no address pin, so the I2C address is fixed by the part variant:
+ * KTD2026 and KTD2027 at 0x30, KTD2026B at 0x31, KTD2026C at 0x32. A board that took a
+ * substitution therefore has the chip at an address its devicetree never mentioned.
+ */
+static const uint8_t ktd202x_variant_addresses[] = { 0x30U, 0x31U, 0x32U };
+
+/**
+ * @brief Probe one address with an address-only write.
+ *
+ * @param[in] i2c      Bus to probe on; its own address is not used.
+ * @param[in] address  7-bit address to probe.
+ *
+ * @return True when a part acknowledged the address.
+ */
+static bool ktd202xAddressAnswers(const struct i2c_dt_spec* const i2c, const uint8_t address)
+{
+	uint8_t scratch = 0;
+	struct i2c_msg message = {
+		.buf = &scratch,
+		.len = 0U, // Address phase only: no register is read, so no part is disturbed
+		.flags = I2C_MSG_WRITE | I2C_MSG_STOP,
+	};
+
+	return i2c_transfer(i2c->bus, &message, 1U, address) == 0;
+}
+
+/**
+ * @brief Find the address the part is actually at and set it on the bus spec.
+ *
+ * Tries the devicetree's address first, so a board that names the fitted variant costs
+ * nothing, then the rest of the family. Retried as a whole because the part may still be
+ * waking: a chip that has not released the bus yet answers nothing, at any address.
+ *
+ * Landing on an address the devicetree did not name is logged as a warning rather than
+ * passed over, because it means the fitted part is not the one the BOM calls for, and that
+ * is worth knowing even though the driver carries on.
+ *
+ * @param[in] dev  KTD202x device.
+ *
+ * @return 0 when a part answered, or -ENODEV when none did.
+ */
+static int ktd202xResolveAddress(const struct device* const dev)
+{
+	const struct ktd202x_config* const config = dev->config;
+	const uint8_t configured = config->i2c->addr;
+
+	for (int attempt = 0; attempt < KTD202X_INIT_RETRY_COUNT; attempt++)
+	{
+		if (ktd202xAddressAnswers(config->i2c, configured))
+		{
+			config->i2c->addr = configured;
+			return 0;
+		}
+
+		for (size_t index = 0; index < ARRAY_SIZE(ktd202x_variant_addresses); index++)
+		{
+			const uint8_t candidate = ktd202x_variant_addresses[index];
+			if (candidate == configured)
+				continue;
+			if (!ktd202xAddressAnswers(config->i2c, candidate))
+				continue;
+
+			LOG_WRN("KTD202x answered at 0x%02x, not the 0x%02x in the devicetree: the fitted variant is not the one the BOM names", candidate, configured);
+			config->i2c->addr = candidate;
+			return 0;
+		}
+
+		k_msleep(KTD202X_RETRY_DELAY_MS);
+	}
+
+	return -ENODEV;
+}
+
+/**
  * @brief Write a register and update its cache only after successful I2C transfer.
  *
  * The caller must hold the driver lock.
@@ -819,7 +897,7 @@ static int ktd202xValidateConfig(const struct ktd202x_config* const config)
  */
 static int ktd202xWriteCachedRegister(const struct ktd202x_config* const config, const uint8_t register_address, const uint8_t value, uint8_t* const cache)
 {
-	const int ret = i2c_reg_write_byte_dt(&config->i2c, register_address, value);
+	const int ret = i2c_reg_write_byte_dt(config->i2c, register_address, value);
 	if (ret == 0)
 		*cache = value;
 
@@ -970,7 +1048,7 @@ static int ktd202xConfigureBreathe(const struct ktd202x_config* const config, st
 	if (ret < 0)
 		return ret;
 
-	ret = i2c_reg_write_byte_dt(&config->i2c, KTD202X_REG_PWM1_TIMER, KTD202X_BREATHE_DUTY_CYCLE);
+	ret = i2c_reg_write_byte_dt(config->i2c, KTD202X_REG_PWM1_TIMER, KTD202X_BREATHE_DUTY_CYCLE);
 	if (ret < 0)
 		return ret;
 
@@ -1180,7 +1258,7 @@ static int ktd202xBlink(const struct device* const dev, const uint32_t led_index
 	}
 
 	const uint8_t pwm_duty_cycle = ktd202xCalcPWMDuty(delay_on, period);
-	ret = i2c_reg_write_byte_dt(&config->i2c, KTD202X_REG_PWM1_TIMER, pwm_duty_cycle);
+	ret = i2c_reg_write_byte_dt(config->i2c, KTD202X_REG_PWM1_TIMER, pwm_duty_cycle);
 	if (ret < 0)
 	{
 		k_mutex_unlock(&data->lock);
@@ -1218,7 +1296,7 @@ static int ktd202xDeviceInit(const struct device* const dev)
 	if (ret < 0)
 		return ret;
 
-	if (!i2c_is_ready_dt(&config->i2c))
+	if (!i2c_is_ready_dt(config->i2c))
 	{
 		LOG_ERR("I2C bus not ready");
 		return -ENODEV;
@@ -1275,6 +1353,13 @@ static int ktd202xDeviceInit(const struct device* const dev)
 		k_usleep(KTD202X_WAKE_DELAY_US);
 	}
 
+	ret = ktd202xResolveAddress(dev); // After the wake sequence: before it, no address answers
+	if (ret < 0)
+	{
+		LOG_ERR("KTD202x not responding at 0x%02x or any other variant address (chip absent or unpowered)", config->i2c->addr);
+		return ret;
+	}
+
 	const uint8_t enable_reset_register = KTD202X_EN_RST_EN_ALWAYS | KTD202X_EN_RST_TCTRL_TSLOT1;
 	for (int attempt = 0; attempt < KTD202X_INIT_RETRY_COUNT; attempt++)
 	{
@@ -1286,7 +1371,7 @@ static int ktd202xDeviceInit(const struct device* const dev)
 
 	if (ret < 0)
 	{
-		LOG_ERR("KTD202x not responding (chip absent or at wrong address): %d", ret);
+		LOG_ERR("KTD202x acknowledged 0x%02x but refused the enable register: %d", config->i2c->addr, ret);
 		return ret;
 	}
 
@@ -1348,8 +1433,9 @@ static int ktd202xDeviceInit(const struct device* const dev)
 	CHANNEL_MAP(inst)                                                                                                                                                                                                                                                                                      \
 	static const struct led_info DT_CAT(ktd202x_leds_, inst)[] = { DT_INST_FOREACH_CHILD(inst, LED_INFO) };                                                                                                                                                                                                \
 	static struct ktd202x_data DT_CAT(ktd202x_data_, inst);                                                                                                                                                                                                                                                \
+	static struct i2c_dt_spec DT_CAT(ktd202x_i2c_, inst) = I2C_DT_SPEC_INST_GET(inst);                                                                                                                                                                                                                     \
 	static const struct ktd202x_config DT_CAT(ktd202x_config_, inst) = {                                                                                                                                                                                                                                   \
-		.i2c = I2C_DT_SPEC_INST_GET(inst),                                                                                                                                                                                                                                                                 \
+		.i2c = &DT_CAT(ktd202x_i2c_, inst),                                                                                                                                                                                                                                                                \
 		.wake_gpio = GPIO_DT_SPEC_INST_GET_OR(inst, wake_gpios, { 0 }),                                                                                                                                                                                                                                    \
 		.vin_supply = COND_CODE_1(DT_INST_NODE_HAS_PROP(inst, vin_supply), (DEVICE_DT_GET(DT_INST_PHANDLE(inst, vin_supply))), (NULL)),                                                                                                                                                                    \
 		.num_leds = ARRAY_SIZE(DT_CAT(ktd202x_leds_, inst)),                                                                                                                                                                                                                                               \
