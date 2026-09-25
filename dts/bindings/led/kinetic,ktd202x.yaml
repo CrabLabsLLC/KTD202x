@@ -8,11 +8,17 @@ description: |
   LED driver with I2C control. Features include individual LED brightness
   control, hardware PWM blinking, and programmable rise/fall times.
 
-  I2C addresses:
+  I2C addresses. The package has no address pin, so the address is fixed by the part
+  variant:
     - KTD2026:  0x30
     - KTD2026B: 0x31
     - KTD2026C: 0x32
     - KTD2027:  0x30
+
+  reg is where the driver looks first, not where the part has to be. If nothing answers
+  there it probes the rest of the family and uses whatever does, warning that the fitted
+  variant is not the one the devicetree names. A board built with a substituted variant
+  therefore needs no devicetree change.
 
   Example with single RGB LED (standard RGB wiring):
 

@@ -20,6 +20,12 @@ Zephyr RTOS driver for the Kinetic Technologies KTD2026/KTD2027 I2C RGB/RGBW LED
 | KTD2026C | 3 (RGB)  | 0x32 |
 | KTD2027  | 4 (RGBW) | 0x30 |
 
+The package has no address pin, so the address above is a property of the variant fitted, not
+something a board chooses. `reg` is where the driver looks first: if nothing answers there it
+probes the rest of the family and uses whatever does, warning that the fitted variant is not
+the one the devicetree names. A board built with a substituted variant needs no devicetree
+change.
+
 ## Installation
 
 Add to your project's `west.yml` or include directly as a Zephyr module.
