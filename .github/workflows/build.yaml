@@ -2,7 +2,7 @@ name: build
 
 on:
   pull_request:
-    branches: [main, main]
+    branches: [main]
     paths-ignore: ['**.md', 'LICENSE', '.gitignore']
   push:
     branches: [main]
@@ -22,7 +22,7 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: ASCII only
         run: |
